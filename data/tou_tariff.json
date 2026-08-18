@@ -1,0 +1,33 @@
+{
+  "tariff_info": {
+    "currency": "AUD",
+    "daily_supply_charge": 1.25,
+    "time_zone": "Australia/Melbourne"
+  },
+  "hourly_schedule": [
+    {"hour": 0, "period": "Off-Peak", "import_rate_per_kwh": 0.18, "export_rate_per_kwh": 0.05},
+    {"hour": 1, "period": "Off-Peak", "import_rate_per_kwh": 0.18, "export_rate_per_kwh": 0.05},
+    {"hour": 2, "period": "Off-Peak", "import_rate_per_kwh": 0.18, "export_rate_per_kwh": 0.05},
+    {"hour": 3, "period": "Off-Peak", "import_rate_per_kwh": 0.18, "export_rate_per_kwh": 0.05},
+    {"hour": 4, "period": "Off-Peak", "import_rate_per_kwh": 0.18, "export_rate_per_kwh": 0.05},
+    {"hour": 5, "period": "Off-Peak", "import_rate_per_kwh": 0.18, "export_rate_per_kwh": 0.05},
+    {"hour": 6, "period": "Off-Peak", "import_rate_per_kwh": 0.18, "export_rate_per_kwh": 0.05},
+    {"hour": 7, "period": "Off-Peak", "import_rate_per_kwh": 0.22, "export_rate_per_kwh": 0.05},
+    {"hour": 8, "period": "Off-Peak", "import_rate_per_kwh": 0.22, "export_rate_per_kwh": 0.05},
+    {"hour": 9, "period": "Off-Peak", "import_rate_per_kwh": 0.22, "export_rate_per_kwh": 0.05},
+    {"hour": 10, "period": "Off-Peak", "import_rate_per_kwh": 0.22, "export_rate_per_kwh": 0.05},
+    {"hour": 11, "period": "Solar Sponge", "import_rate_per_kwh": 0.08, "export_rate_per_kwh": 0.02},
+    {"hour": 12, "period": "Solar Sponge", "import_rate_per_kwh": 0.08, "export_rate_per_kwh": 0.02},
+    {"hour": 13, "period": "Solar Sponge", "import_rate_per_kwh": 0.08, "export_rate_per_kwh": 0.02},
+    {"hour": 14, "period": "Solar Sponge", "import_rate_per_kwh": 0.08, "export_rate_per_kwh": 0.02},
+    {"hour": 15, "period": "Solar Sponge", "import_rate_per_kwh": 0.08, "export_rate_per_kwh": 0.02},
+    {"hour": 16, "period": "Evening Peak", "import_rate_per_kwh": 0.48, "export_rate_per_kwh": 0.25},
+    {"hour": 17, "period": "Evening Peak", "import_rate_per_kwh": 0.52, "export_rate_per_kwh": 0.28},
+    {"hour": 18, "period": "Evening Peak", "import_rate_per_kwh": 0.58, "export_rate_per_kwh": 0.35},
+    {"hour": 19, "period": "Evening Peak", "import_rate_per_kwh": 0.58, "export_rate_per_kwh": 0.35},
+    {"hour": 20, "period": "Evening Peak", "import_rate_per_kwh": 0.48, "export_rate_per_kwh": 0.25},
+    {"hour": 21, "period": "Off-Peak", "import_rate_per_kwh": 0.22, "export_rate_per_kwh": 0.05},
+    {"hour": 22, "period": "Off-Peak", "import_rate_per_kwh": 0.18, "export_rate_per_kwh": 0.05},
+    {"hour": 23, "period": "Off-Peak", "import_rate_per_kwh": 0.18, "export_rate_per_kwh": 0.05}
+  ]
+}

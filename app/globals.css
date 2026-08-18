@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+
+  /* -------------------------------------------------------------------
+   * Chart / data-visualization tokens.
+   *
+   * These are separate from the sliders' emerald "brand" accent on
+   * purpose: colors used to encode DATA (a chart series, a delta) have
+   * to pass color-blindness and contrast checks as a set, so they come
+   * from a validated palette rather than being picked to "look nice"
+   * next to the rest of the UI. See components/results/ for where these
+   * get used, and the project's dataviz design notes for how this exact
+   * pair of colors was chosen and verified.
+   * ------------------------------------------------------------------- */
+  --chart-surface: #fcfcfb; /* card background behind any chart/stat tile */
+  --chart-text-primary: #0b0b0b;
+  --chart-text-secondary: #52514e;
+  --chart-muted: #898781; /* axis labels, and the "EV plugged in" band fill */
+  --chart-grid: #e1e0d9; /* hairline gridlines */
+  --chart-baseline: #c3c2b7; /* axis line itself */
+  --chart-border: rgba(11, 11, 11, 0.1);
+  --chart-series-1: #2a78d6; /* Stationary Battery — categorical slot 1 (blue). Reused
+                                 everywhere the battery is plotted, not just one chart. */
+  --chart-series-2: #eb6834; /* EV Battery — categorical slot 2 (orange). Same rule. */
+  --chart-series-3: #1baf7a; /* Solar — categorical slot 3 (aqua/green). Used by the
+                                 Energy Flow Diagram. Grid deliberately does NOT get a 4th
+                                 categorical slot — validated 4-color sets fail the
+                                 "any two can be adjacent" (all-pairs) colorblind check, and
+                                 Grid is conceptually the fallback/utility source, not a
+                                 peer "microgrid asset" like the other three — it uses
+                                 --chart-muted instead. See the Energy Flow Diagram component
+                                 for the full reasoning. */
+  --chart-success: #006300; /* "more resilience hours" delta — this direction is always good */
+
+  /* Sequential heatmap ramp for the Sensitivity Matrix Table — 5 bins, one
+   * hue (blue), light-to-dark, taken verbatim from this project's documented
+   * sequential palette (steps 100/250/400/550/700). This encodes MAGNITUDE
+   * only ("how big is this number"), not "is this good or bad" — Payback
+   * Years and Survival Hours have opposite "goodness" directions (lower
+   * payback is better; more survival hours is better), so a single ramp
+   * meaning "darker = better" would silently flip meaning depending on which
+   * metric is selected. Darker always just means "a bigger number," for
+   * either metric — see SensitivityMatrixTable.tsx.
+   * Each step's paired -text color was picked by actually checking contrast
+   * (via this project's palette validator's contrast() helper) rather than
+   * assumed — the boundary sits between steps 2 and 3, not exactly in the
+   * middle of the 5 bins, because step 2 (#3987e5) reads better with dark
+   * text (5.4:1) than white (3.6:1, fails normal-text WCAG contrast). */
+  --chart-seq-0-bg: #cde2fb;
+  --chart-seq-0-text: #0b0b0b;
+  --chart-seq-1-bg: #86b6ef;
+  --chart-seq-1-text: #0b0b0b;
+  --chart-seq-2-bg: #3987e5;
+  --chart-seq-2-text: #0b0b0b;
+  --chart-seq-3-bg: #1c5cab;
+  --chart-seq-3-text: #ffffff;
+  --chart-seq-4-bg: #0d366b;
+  --chart-seq-4-text: #ffffff;
+  /* Cell background for a null/"N/A" value (e.g. payback when a scenario
+   * never actually saves money) — deliberately NOT part of the blue ramp,
+   * since a null isn't a magnitude that belongs on a "how big" scale. */
+  --chart-seq-null-bg: #e1e0d9;
+  --chart-seq-null-text: #52514e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+
+    --chart-surface: #1a1a19;
+    --chart-text-primary: #ffffff;
+    --chart-text-secondary: #c3c2b7;
+    --chart-muted: #898781;
+    --chart-grid: #2c2c2a;
+    --chart-baseline: #383835;
+    --chart-border: rgba(255, 255, 255, 0.1);
+    --chart-series-1: #3987e5;
+    --chart-series-2: #d95926;
+    --chart-series-3: #199e70;
+    --chart-success: #0ca30c;
+
+    /* Same 5 documented steps as light mode, but traversed in the OPPOSITE
+     * order ("flips anchor in dark", per this project's color-formula
+     * reference): the darkest step now represents the LOW end (it recedes
+     * into the near-black surface) and the lightest step represents the
+     * HIGH end (it pops against a dark surface instead of glowing oddly at
+     * the "low/receding" end, which is what would happen if the light-mode
+     * order were kept unchanged here). Each -text pairing still comes from
+     * the same measured contrast values as light mode — it's the same 5
+     * (bg, text) pairs, just reassigned to the reversed bin order. */
+    --chart-seq-0-bg: #0d366b;
+    --chart-seq-0-text: #ffffff;
+    --chart-seq-1-bg: #1c5cab;
+    --chart-seq-1-text: #ffffff;
+    --chart-seq-2-bg: #3987e5;
+    --chart-seq-2-text: #0b0b0b;
+    --chart-seq-3-bg: #86b6ef;
+    --chart-seq-3-text: #0b0b0b;
+    --chart-seq-4-bg: #cde2fb;
+    --chart-seq-4-text: #0b0b0b;
+    --chart-seq-null-bg: #2c2c2a;
+    --chart-seq-null-text: #c3c2b7;
+  }
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}

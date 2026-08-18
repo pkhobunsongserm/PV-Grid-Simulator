@@ -1,0 +1,33 @@
+{
+  "household_info": {
+    "daily_total_kwh": 18.2,
+    "baseload_kw": 0.35,
+    "critical_load_percentage": 0.30
+  },
+  "hourly_demand_kw": [
+    {"hour": 0, "demand_kw": 0.35, "critical_demand_kw": 0.11},
+    {"hour": 1, "demand_kw": 0.30, "critical_demand_kw": 0.09},
+    {"hour": 2, "demand_kw": 0.30, "critical_demand_kw": 0.09},
+    {"hour": 3, "demand_kw": 0.30, "critical_demand_kw": 0.09},
+    {"hour": 4, "demand_kw": 0.35, "critical_demand_kw": 0.11},
+    {"hour": 5, "demand_kw": 0.45, "critical_demand_kw": 0.14},
+    {"hour": 6, "demand_kw": 0.90, "critical_demand_kw": 0.27},
+    {"hour": 7, "demand_kw": 1.85, "critical_demand_kw": 0.56},
+    {"hour": 8, "demand_kw": 1.60, "critical_demand_kw": 0.48},
+    {"hour": 9, "demand_kw": 0.80, "critical_demand_kw": 0.24},
+    {"hour": 10, "demand_kw": 0.55, "critical_demand_kw": 0.17},
+    {"hour": 11, "demand_kw": 0.50, "critical_demand_kw": 0.15},
+    {"hour": 12, "demand_kw": 0.60, "critical_demand_kw": 0.18},
+    {"hour": 13, "demand_kw": 0.50, "critical_demand_kw": 0.15},
+    {"hour": 14, "demand_kw": 0.45, "critical_demand_kw": 0.14},
+    {"hour": 15, "demand_kw": 0.65, "critical_demand_kw": 0.20},
+    {"hour": 16, "demand_kw": 0.95, "critical_demand_kw": 0.29},
+    {"hour": 17, "demand_kw": 1.70, "critical_demand_kw": 0.51},
+    {"hour": 18, "demand_kw": 2.40, "critical_demand_kw": 0.72},
+    {"hour": 19, "demand_kw": 2.10, "critical_demand_kw": 0.63},
+    {"hour": 20, "demand_kw": 1.55, "critical_demand_kw": 0.47},
+    {"hour": 21, "demand_kw": 1.10, "critical_demand_kw": 0.33},
+    {"hour": 22, "demand_kw": 0.65, "critical_demand_kw": 0.20},
+    {"hour": 23, "demand_kw": 0.40, "critical_demand_kw": 0.12}
+  ]
+}
