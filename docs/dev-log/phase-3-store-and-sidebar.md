@@ -45,7 +45,7 @@ for a "temporary, ugly" results area in this phase, on purpose.
 
 - **`ReserveSocSlider` is a separate component from `BatteryControls`**, even
   though both configure the same stationary battery, specifically to reflect
-  README.md's point that Reserve SoC behaves asymmetrically from every other
+  design-document.md's point that Reserve SoC behaves asymmetrically from every other
   battery setting (see the Phase 2 log). Keeping it visually and structurally
   separate in the sidebar was a deliberate choice to avoid it *looking* like
   "just another battery slider."

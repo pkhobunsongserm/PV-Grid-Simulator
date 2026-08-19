@@ -40,7 +40,7 @@ picking colors and a chart type by eye.
 ## Key decisions & reasoning
 
 - **The Dual-Battery Chart is two lines, not a stacked area** — see the
-  README.md changelog entry for the full reasoning; the short version is that
+  design-document.md changelog entry for the full reasoning; the short version is that
   Stationary SoC% and EV SoC% don't sum to anything meaningful, so stacking
   them would visually invent a "combined fullness" number that isn't real.
 - **The two series colors (blue for Stationary, orange for EV) were
@@ -107,4 +107,4 @@ picking colors and a chart type by eye.
 ## What's next
 
 Phase 5 builds the Energy Flow Diagram (a custom SVG, not a chart library —
-see README.md for why) and Phase 6 builds the Sensitivity Matrix Table.
+see design-document.md for why) and Phase 6 builds the Sensitivity Matrix Table.

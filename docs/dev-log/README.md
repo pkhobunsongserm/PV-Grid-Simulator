@@ -16,9 +16,11 @@ Meant to be read start to finish if you want to understand the app's history,
 or dipped into per-phase if you just want the story behind one part of it.
 
 For the durable, "this is how the app behaves and why" reference, see
-[`README.md`](../../README.md) in the project root — that file is the source
-of truth for locked engineering decisions. This log is the narrative behind
-how those decisions (and the ones made since) came about.
+[`design-document.md`](design-document.md) — that file (the project's
+original README, archived here once the root `README.md` was rewritten as a
+portfolio-facing overview) is the source of truth for locked engineering
+decisions. This log is the narrative behind how those decisions (and the
+ones made since) came about.
 
 ## Phases
 
@@ -37,6 +39,7 @@ how those decisions (and the ones made since) came about.
 
 | File | What it covers |
 |---|---|
+| [design-document.md](design-document.md) | The project's original README — the source of truth for locked engineering decisions, superseded at the repo root by a portfolio-facing rewrite |
 | [test-recommendations.md](test-recommendations.md) | A companion to Phase 8, kept separate because it's a living recommendation document rather than a one-time diary entry |
 | [handover-report.md](handover-report.md) | A full project status snapshot for both non-technical and developer readers, plus a next-steps roadmap (including the original Future Features list, preserved here for the first time) |
 

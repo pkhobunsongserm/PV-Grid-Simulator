@@ -49,7 +49,7 @@ isolation, with tests, was worth doing before anything depended on them.
 ## Key decisions & reasoning
 
 Every one of these was already decided during planning and documented in
-README.md's "Locked decisions" section — this phase's job was implementing
+design-document.md's "Locked decisions" section — this phase's job was implementing
 them exactly, not re-deciding them. The ones worth calling out here because
 they're the easiest to get wrong when implementing from scratch:
 

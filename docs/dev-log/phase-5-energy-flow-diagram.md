@@ -7,7 +7,7 @@
 Build the most visually complex piece of the dashboard: a scrubbable,
 hour-by-hour snapshot of exactly where power is coming from and going to —
 Solar, Home, Stationary Battery, EV, and Grid — as hand-drawn SVG rather than
-a diagramming library (see README.md's Tech Stack section for why).
+a diagramming library (see design-document.md's Tech Stack section for why).
 
 ## What I built
 

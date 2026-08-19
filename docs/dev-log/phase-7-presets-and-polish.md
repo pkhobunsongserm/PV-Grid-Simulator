@@ -24,7 +24,7 @@ everything the dashboard needs already existed after Phase 6.
 - **`components/controls/EVControls.tsx`** — added the input-validation
   guard the plan specifically asked for: a visible warning when Departure
   and Arrival are set to the same hour, explaining that the EV will be
-  treated as never home (a legal, intentional value per README.md #5, but
+  treated as never home (a legal, intentional value per design-document.md #5, but
   an easy one to land on by accident and confusing to see silently do
   nothing).
 - **`components/results/SensitivityMatrixTable.tsx`** — added `aria-pressed`
@@ -104,5 +104,6 @@ original spec exists, tested, and documented. The original planning
 conversation's "Future Features (post-MVP)" list (grid-charging batteries,
 seasonal profiles, battery degradation modeling, network export limits, and
 others) is where post-MVP ideas live if development continues — that list
-isn't duplicated into README.md itself, since README.md documents how the
-*existing* app behaves, not a roadmap for what it might become.
+isn't duplicated into design-document.md itself, since design-document.md
+documents how the *existing* app behaves, not a roadmap for what it might
+become.

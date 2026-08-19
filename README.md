@@ -1,389 +1,139 @@
-# Resilience vs. ROI Microgrid Sensitivity Matrix (V2G Edition)
+# V2G Resilience Simulator
 
-A Next.js dashboard that simulates a household's solar + stationary battery +
-bidirectional-EV (V2G — "Vehicle-to-Grid," the EV can send power *back* into the house,
-not just draw power from it) microgrid against a real Melbourne time-of-use tariff, and
-reports financial payback, annual savings, and blackout-survival hours — plus a
-sensitivity matrix showing how battery reserve level and size trade off payback vs.
-resilience.
+Answers the two questions every solar-battery-EV buyer actually asks — "how fast does this pay for itself?" and "how long does it keep the lights on when the grid doesn't?" — from one set of live sliders, no backend required.
 
-**Read this file before making any change to the simulation logic.** It records every
-engineering decision that was deliberately made during planning — if a change seems to
-require revisiting one of these, say so explicitly rather than quietly overriding it.
+[PLACEHOLDER: hero screenshot or demo GIF of the dashboard — Executive Cards + Dual-Battery Chart in view]
 
-This project is being built incrementally with Claude Code. If you're picking this repo
-up in a new session (human or AI), start here.
+**Live demo:** [PLACEHOLDER: deployed URL]
 
-## What this app actually is
+## Overview
 
-There's no backend, database, or login. Every calculation — the 24-hour simulation, the
-financial numbers, the sensitivity matrix — runs entirely in the visitor's browser,
-recalculated live as sliders move. The three files in `data/` are the only "data" this
-app has; everything else is derived from them plus whatever the sliders are set to.
+This is a client-side dashboard that simulates a household's solar + stationary battery + bidirectional-EV ("V2G" — Vehicle-to-Grid, meaning the car can discharge back into the house, not just draw from it) microgrid against a real Melbourne time-of-use tariff. Every slider move re-runs a full 24-hour dispatch simulation and recomputes financial payback, annual savings, and blackout-survival hours instantly, entirely in the browser. A companion sensitivity matrix shows how battery reserve level and size trade off cost payback against outage resilience — the two goals usually pull in opposite directions, and the matrix makes that tension visible rather than collapsing it into one number.
 
-## Tech stack
+## Features
 
-- **Next.js 14 (App Router) + TypeScript + Tailwind CSS** — a client-side single-page
-  app hosted by Next's tooling. No server-rendering of dynamic data happens anywhere;
-  components are marked `"use client"` where needed.
-- **Recharts** — for the Dual-Battery Stack Chart (a standard chart type it's built
-  for).
-- **Zustand** — holds the ~15 interdependent slider inputs (battery, EV, solar, load,
-  cost-assumption settings). Chosen over React's built-in Context because Context
-  re-renders every subscriber on every change, which would make every result
-  component (Executive Cards, the battery chart, the flow diagram, the sensitivity
-  table) redraw on every pixel of a slider drag; Zustand's selector subscriptions
-  avoid that.
-- **Vitest** — unit tests for the simulation engine, run independently of the UI.
-- **Lucide React** — icon set (used in the sidebar and the Energy Flow Diagram).
-- The Energy Flow Diagram is **hand-built SVG**, not a charting/diagram library — its
-  shape never changes (always the same 5 nodes: Solar, Home, Stationary Battery, EV,
-  Grid), so a general-purpose flow/Sankey library would add a dependency for no real
-  benefit over drawing 5 boxes and some connector lines directly.
+- **Instant what-if exploration** — drag any of ~15 battery, EV, solar, or load inputs and every chart, card, and table recalculates live. No save button, no server round-trip.
+- **Real tariff modeling, not a flat rate** — Off-Peak, Solar Sponge, and Evening Peak pricing (import *and* export rates differ per period), so the savings number reflects when energy is used, not just how much.
+- **Payback and savings projection** — capex for battery, solar, and V2G charger vs. a no-equipment baseline, reduced to a single years-to-payback figure.
+- **Blackout resilience estimate** — simulate a grid outage starting at any hour and see how many hours of *critical* load (fridge, essential circuits) the batteries can carry, with and without the EV's help.
+- **Dual-battery state-of-charge chart** — stationary battery and EV battery plotted as two independent lines across the day, each with a table-view fallback.
+- **Energy flow diagram** — a live snapshot of where power is moving (Solar → Home, Battery → Home, Grid → Home, etc.) for any hour of the simulated day.
+- **Reserve vs. size sensitivity matrix** — a heat-mapped grid of Reserve SoC% against Battery Capacity, showing payback years and survival hours for every combination at once.
+- **Three starting presets** — Commuter EV, Off-Grid Heavy, and Solar Max — so the tool is useful in one click before anyone touches a slider.
 
-## Project structure and the "why"
+## Tech Stack
+
+| Choice | Why |
+|---|---|
+| **Next.js 14 (App Router) + TypeScript** | Ships as a fully client-rendered SPA — every component is `"use client"`, since every number on screen depends on live slider state and there's no dynamic server data to render. |
+| **Tailwind CSS** | Utility-first styling that keeps the ~20 control and result components visually consistent without a separate design-token layer. |
+| **Zustand** | Holds the ~15 interdependent slider inputs. Chosen over React Context because Context re-renders *every* subscriber on *any* change — with four heavy result components (cards, chart, diagram, matrix) all reading from the same state, that would redraw all of them on every pixel of a slider drag. Zustand's selector subscriptions avoid that. |
+| **Recharts** | Drives the Dual-Battery chart — a standard line-chart use case it's built for, not worth hand-rolling. |
+| **Hand-built SVG** (no diagram library) | The Energy Flow Diagram always has the same 5 nodes (Solar, Home, Stationary Battery, EV, Grid). A general-purpose Sankey/flow library would add a dependency for a shape that never actually varies. |
+| **Vitest** | Unit tests the simulation engine as pure functions, independent of any rendered UI. |
+| **Lucide React** | Icon set for the sidebar and flow diagram. |
+
+## How It Works
+
+There is no backend, database, or API — this is a static, fully client-side app. "Storage" is three reference JSON files bundled with the build; everything else is computed on demand.
 
 ```
-data/            The 3 reference JSON files, unmodified from source.
-lib/             Pure calculation code — NO React/UI imports anywhere in here.
-                 This is what makes the model logic "cleanly isolated": these files
-                 can be read, tested, and understood with zero knowledge of React.
-  types.ts         TypeScript shapes for every piece of data in the app.
-  constants.ts     Capex defaults, rate limits.
-  v2g-simulation.ts  The simulation engine itself (see below).
-  presets.ts       "Commuter EV" / "Off-Grid Heavy" / "Solar Max" preset definitions.
-  format.ts        Small display-formatting helpers.
-  reference-data.ts  The three JSON files, imported and typed ONCE — everything else
-                   that needs them imports from here instead of re-importing the JSON.
-  __tests__/       Vitest unit tests for the engine.
-store/           Zustand store — holds raw slider values ONLY, never computed results.
-hooks/           useMemo-based glue that recalculates results from the store by
-                 calling lib/v2g-simulation.ts whenever a relevant input changes.
+data/*.json  →  lib/reference-data.ts  →  scaling (lib/v2g-simulation.ts)  →  24h dispatch engine  →  Zustand store (raw inputs) → hooks (memoized recompute) → components (charts/cards/table)
+```
+
+1. **Reference data** (`data/`) — one representative day each for solar generation (6.6kW reference system), household demand (18.2kWh/day), and the 24-hour time-of-use tariff schedule. Imported once through `lib/reference-data.ts` so nothing else re-parses the raw JSON.
+2. **Scaling** — when the user changes the Solar Capacity or Base Load sliders, the reference curves are scaled proportionally to the new size, preserving their original hourly shape rather than being replaced by a flat approximation.
+3. **Simulation engine** (`lib/v2g-simulation.ts`) — a pure, framework-free TypeScript module (no React imports) that runs an hour-by-hour dispatch loop and returns a full 24-hour result: state of charge for both batteries, grid import/export, and cost per hour. The same function also powers the outage simulator and the sensitivity matrix, just called with different inputs.
+4. **State** (`store/useSimulationStore.ts`) — a Zustand store holding *only* the raw slider values, never derived results, so nothing computed can drift out of sync with its inputs.
+5. **Hooks** (`hooks/`) — `useMemo`-based glue that reruns the engine whenever relevant store values change, so results stay a live projection of current slider state rather than a stale snapshot.
+6. **UI** (`components/`) — sidebar controls write to the store; result components (Executive Cards, the SoC chart, the flow diagram, the sensitivity table) read from the hooks. Nothing is rendered on the server.
+
+## Notable Technical Decisions
+
+**Proportional curve scaling, not a flat multiplier.** Resizing the solar or load sliders scales every hourly value in the reference curve by the same ratio (`selected / reference`), preserving the original curve's shape — the solar bell curve, the morning/evening demand peaks — rather than smearing usage evenly across the day. The scaled solar curve is then clipped to a scaled inverter limit, holding the reference system's ~1.32:1 DC:AC ratio constant across all sizes rather than exposing inverter sizing as its own slider. Both denominators in the scaling formula (6.6kW, 18.2kWh) are fixed constants, so the ratio can never divide by a user-controlled zero.
+
+**Dispatch priority order, and why the discharge rule is safe.** Every simulated hour follows a strict priority: solar → home load → battery charge → EV charge → grid export, then unmet demand draws down the stationary battery (any time, above its reserve floor), then the EV via V2G (Evening Peak only, above its own floor), then finally the grid. Neither battery is ever charged *from* the grid in this version — only from solar surplus. That constraint is what makes "discharge the battery any time it beats a grid import" a safe rule with no lookahead: since all stored energy started as free solar, there's never a scenario where holding it back for a cheaper future hour would have been the better call. Adding grid-charging (see Roadmap) would break that assumption and require real forecasting logic, not just a tweak.
+
+**Two batteries, two different floors, on purpose.** The stationary battery's Reserve SoC is a floor *only* during normal operation — its entire purpose is reserving charge for an outage, so during a simulated blackout it's allowed to drain to 0%. The EV's Discharge Floor, by contrast, stays a hard limit *even during* a blackout, because its job — keeping enough range to actually drive away — doesn't stop mattering just because the grid is down. Same shape of setting, deliberately different behavior, labeled distinctly in the UI so they don't read as equivalent.
+
+**EV scheduling handles the midnight-crossing case, and commute cost is a single deduction.** `isEvAway(hour, departureHour, arrivalHour)` uses modular arithmetic so a schedule like "departs 22:00, arrives 06:00" resolves correctly across the day boundary; a departure hour equal to the arrival hour is treated as "never home," not an error. Daily commute energy is a single lump figure (e.g. 12kWh) subtracted once, at the departure hour, clamped at zero — outbound and return legs aren't modeled separately. In the outage simulator, the EV's plugged-in status is frozen at the instant the blackout starts and held for the full simulated outage; no mid-outage commute cycling is modeled, since a blackout is (by definition) not a normal day.
+
+## Installation & Local Setup
+
+```bash
+git clone https://github.com/pkhobunsongserm/PV-Grid-Simulator.git
+cd PV-Grid-Simulator
+npm install
+npm run dev      # http://localhost:3000
+```
+
+Other scripts, straight from `package.json`:
+
+```bash
+npm run build    # production build
+npm run start    # serve the production build
+npm run lint     # ESLint
+npm test         # Vitest — the simulation engine's unit test suite
+```
+
+## Project Structure
+
+```
+data/                        3 reference JSON files (solar, load, tariff) — unmodified from source
+lib/                          Pure calculation code, zero React/UI imports
+  types.ts                      TypeScript shapes for every data structure in the app
+  constants.ts                  Fixed engine values (max charge rate, capex defaults, outage cap)
+  v2g-simulation.ts             The dispatch engine — scaling, hourly simulation, outage & baseline runs
+  presets.ts                    Commuter EV / Off-Grid Heavy / Solar Max preset definitions
+  format.ts                     Display-formatting helpers (currency, hours, percentages)
+  reference-data.ts             Single import point for the 3 JSON files
+  __tests__/                    Vitest unit tests for the engine and formatters
+store/useSimulationStore.ts  Zustand store — raw slider values only, no derived state
+hooks/                        useMemo-based hooks that recompute results from the store
 components/
-  layout/          Header, Sidebar shell.
-  controls/        The actual slider/input UI pieces.
-  results/         Executive cards, charts, the flow diagram, the sensitivity table.
-app/             Next.js's required entry-point files (layout, page, global styles).
-docs/dev-log/    Phase-by-phase development diary (documentation only — see its own
-                 README for why this can't affect the app; not part of the running code).
+  layout/                       Header, Sidebar shell
+  controls/                     Slider and input components
+  results/                      Executive Cards, SoC chart, flow diagram, sensitivity matrix table
+app/                          Next.js entry points (layout, page, global styles)
+docs/dev-log/                 Phase-by-phase build diary and engineering-decision history
 ```
 
-**The sliders are the single source of truth.** Nothing computed is ever stored twice
-in two places that could drift out of sync — every chart and card is a live view of a
-fresh calculation off the current slider values.
+## Testing
 
-## Locked decisions — read before touching the simulation logic
-
-### 1. Tariff data source
-The tariff schedule in `data/tou_tariff.json` (24 hourly entries, 4 named periods —
-Off-Peak, Solar Sponge, Evening Peak) is the canonical source of tariff rates. It is
-**not user-editable** in this version — no UI exists to change rates or period
-boundaries. An earlier draft of the feature list described a simpler 3-tier tariff with
-different numbers; that draft was superseded by this file.
-
-### 2. Scaling the reference solar/demand curves
-`data/solar_profile.json` is shaped for a 6.6kW reference system; `data/household_load.
-json` totals 18.2kWh/day. When the user changes the Solar Capacity or Base Load
-sliders, the underlying hourly curves are scaled **proportionally**, preserving their
-shape:
-
-```
-generation_kw[h] = pv_output_kw[h] × (selected_solar_kw / 6.6)
-demand_kw[h]     = demand_kw[h]    × (selected_daily_kwh / 18.2)
+```bash
+npm test
 ```
 
-The scaled generation curve is clipped to a scaled inverter limit
-(`inverter_limit_kw × (selected_solar_kw / 6.6)`, i.e. the DC:AC ratio from the
-reference system — about 1.32:1 — is assumed to hold at any size, rather than exposing
-inverter size as its own separate slider). This is a stated MVP simplification, not an
-oversight — surface it in a tooltip near the Solar Capacity slider.
+Runs the Vitest suite against `lib/` — the engine and the display-formatting helpers, entirely independent of any rendered UI. Coverage includes:
 
-**Critical load** (the ~30% of demand that matters during a blackout): by default, the
-per-hour `critical_demand_kw` values from the JSON are scaled by the same load ratio,
-preserving their original hour-to-hour shape. If the user overrides the Critical Load %
-slider, the app switches to a flat formula instead — `critical_demand_kw[h] =
-demand_kw[h] × criticalLoadPct` for every hour — which deliberately replaces the JSON's
-slight per-hour variation. Both paths are intentional; don't quietly pick one.
+- The no-equipment baseline matches a manually-computed grid-only bill (this baseline is also what every savings figure in the app is measured against — same function, not a separate formula).
+- Solar surplus charges the stationary battery with zero grid import at midday.
+- The stationary battery never discharges below its reserve floor during normal (non-outage) operation.
+- The EV contributes zero resilience when away at the moment a blackout starts.
+- V2G discharge never fires outside Evening Peak hours.
+- Commute energy is deducted exactly once, at departure, clamped at zero.
+- A sensitivity matrix cell's result matches calling the engine directly with the same inputs.
+- Reserve SoC has zero effect on outage survival hours — a real, initially counterintuitive finding from manual testing, locked in as a permanent regression check.
 
-Neither scaling formula can divide by zero: both denominators (6.6, 18.2) are fixed
-reference constants, never user-controlled values.
+UI components and the Zustand store don't have automated coverage yet — see Roadmap.
 
-### 3. Dispatch priority order (the core algorithm)
-Every simulated hour, in this exact order:
+## Roadmap
 
-1. Solar → home load, direct.
-2. Solar surplus → stationary battery charge (≤10kW rate, ≤capacity).
-3. Remaining solar surplus → EV charge, if plugged in (≤charger power, ≤capacity).
-4. Remaining solar surplus → export to grid.
-5. Unmet demand → stationary battery discharge, **any period**, as long as its SoC is
-   above the Reserve floor.
-6. Remaining unmet demand, **Evening Peak hours only** → EV V2G discharge, if plugged
-   in and above its floor.
-7. Remaining unmet demand → grid import.
+Not yet built, roughly in original priority order:
 
-**MVP simplification, stated on purpose**: neither battery ever charges from the grid,
-even during cheap Solar-Sponge/Off-Peak hours — only from solar surplus. This is what
-makes step 5's "discharge any time it beats an import" rule safe: since all stored
-energy is free (solar-origin), there's never a case where holding it back would have
-been better. Adding grid-charging later (see Future Features, in the planning history)
-would break that assumption and require a genuinely smarter dispatch rule, not just a
-tweak.
+- **Grid-charging arbitrage** — let the battery buy cheap Solar-Sponge/Off-Peak power to use later, not just store free solar. The bigger lift here is forecasting whether a purchase now actually pays off later, not the UI.
+- **Seasonal and weekday/weekend variation** — the savings estimate currently extrapolates one representative day × 365; modeling actual seasonal swings is the single biggest accuracy gap.
+- **Shareable scenarios** — encode slider state into a URL so a configuration can be sent to someone else without an account or server.
+- **Real usage data upload** — let a visitor drop in their own smart-meter export instead of the bundled example household.
+- **Solar export limits** — model the network export caps real Australian DNSPs enforce, which the current model ignores.
+- **Component and store test coverage** — `useSimulationStore`, the two calculation hooks, and the highest-traffic result components (`ExecutiveSummaryCards`, `SensitivityMatrixTable`) are the next targets; see `docs/dev-log/test-recommendations.md`.
 
-### 4. Reserve SoC vs. EV Discharge Floor — intentionally asymmetric
-These are two different sliders governing two different batteries, and they behave
-differently on purpose:
+[PLACEHOLDER: confirm/edit priority order, or add anything not listed here]
 
-- **Stationary Reserve SoC** is a floor *only during normal, non-outage operation*.
-  Its entire purpose is to guarantee energy is available *for* an outage — so during a
-  simulated blackout, the stationary battery is allowed to discharge all the way to 0%
-  (the reserve is exactly what's being drawn on).
-- **EV Discharge Floor** stays a hard floor *even during* a simulated blackout, because
-  its purpose (keeping enough charge to actually drive away) doesn't stop mattering
-  just because the grid is down.
+## License
 
-Label these distinctly in the UI (e.g. "Stationary Reserve SoC" vs. "EV Discharge
-Floor") — they are not the same kind of setting and shouldn't be presented as
-equivalent.
+[PLACEHOLDER: e.g. MIT — no LICENSE file currently in this repo]
 
-### 5. EV away/commute mechanics
-- `isEvAway(hour, departureHour, arrivalHour)` determines whether the EV is home and
-  available for dispatch. It correctly handles schedules that cross midnight (e.g.
-  departs 22:00, arrives 06:00) via modular arithmetic. If `departureHour ===
-  arrivalHour`, that's treated as "EV never home," not an error.
-- The daily commute energy (a single lump number, e.g. 12kWh) is subtracted from the EV
-  battery **exactly once**, at the departure hour, before that hour's other dispatch
-  math runs — clamped at 0, never negative. It represents the full round trip; outbound
-  and return legs are not modeled separately.
+## Contact
 
-### 6. Outage / resilience simulator
-From a configurable blackout-start hour (default **18:00**, the start of Evening Peak —
-chosen because it's also when demand is highest, making it the more meaningful stress
-test vs. midnight):
-- Only **critical** load is served, not full demand.
-- No grid import/export is available at all during the simulated outage.
-- No solar recharging is assumed during the outage (a deliberately conservative
-  choice).
-- Stationary battery contributes its full charge down to 0% (see decision 4).
-- EV contributes charge above its discharge floor **only if it happens to be plugged in
-  at the moment the blackout starts** — its plugged/away status is frozen at that
-  instant for the rest of the simulated outage (no commute cycling modeled mid-outage).
-- The simulation is capped at 168 hours (one week); if it never runs out, display
-  "168+" rather than an unbounded number.
-- Run twice per scenario (`includeEV: true/false`) to produce the Executive Card's
-  "combined vs. stationary-only" comparison.
-
-### 7. Baseline scenario (for savings calculations)
-The "no equipment" baseline used to compute savings is produced by calling the *same*
-dispatch function with battery capacity and solar capacity set to 0 and the EV
-permanently away — not a separately-written formula. This guarantees the baseline can
-never quietly disagree with the real simulation about how a dollar of cost is
-calculated, and is the basis of the first unit test.
-
-### 8. Sensitivity matrix axes
-The matrix varies **Reserve SoC%** (rows) against **Stationary Battery Capacity**
-(columns) only — **not** EV capacity, which stays fixed at whatever the user
-configured, because the EV is treated as a car someone already owns, not a sizing
-decision like a home battery purchase. Column headers display the resulting combined
-total (`stationary + EV capacity`) for context only.
-
-### 9. Capex / financial assumptions (no cost inputs existed in the original spec)
-- Battery: **$900/kWh**
-- Solar: **$1,200/kW**
-- V2G charger: **$10,000 flat** — a fixed cost, not scaled by power rating, because
-  real bidirectional charger cost is dominated by fixed inverter/certification cost,
-  not size.
-- The EV itself is **not** capitalized — treated as a pre-existing transport asset;
-  only the incremental V2G-capable charger counts as this project's investment.
-- `annualSavings = dailySavings × 365`, extrapolated from one representative day — a
-  real simplification (no seasonal/weekday variation modeled). Show a small disclaimer
-  near the payback number rather than presenting it as a precise forecast.
-- `paybackYears = totalCapex / annualSavings`, or `null` ("N/A") if `annualSavings <=
-  0` — guards the obvious divide-by-zero/negative case.
-
-### 10. Starting SoC (not in the original spec — added because the engine needs it)
-- `battery.startingSocPct` defaults to Reserve SoC (the battery starts each simulated
-  day sitting at its own floor — a reasonable steady-state assumption).
-- `ev.startingSocPct` defaults to 80% (a typical "charged overnight" starting point).
-
-### 11. Units
-Because the data is hourly (`resolution_minutes: 60`), a rate of 1kW sustained for 1
-hour equals exactly 1kWh — so kW and kWh are numerically interchangeable throughout
-this MVP's math. That's a property of using hourly data, not a general truth, so the
-code threads an explicit `dt = 1` (hour) multiplier through every energy accumulation.
-If resolution ever changes (e.g. to 15-minute steps), that should be a one-line change,
-not a silent unit bug — don't remove the `dt` multiplier to "simplify" the code.
-
-## Code documentation standard
-
-This codebase is meant to be readable by someone who's comfortable with code but new to
-Next.js/React/TypeScript/this specific stack. When adding or editing files:
-
-- Every file starts with a short header comment explaining what it's for and, where
-  relevant, why it lives where it does.
-- Every exported function/type gets a plain-language comment — especially anywhere a
-  decision from this README is being implemented, explain *why*, not just *what*, since
-  those are the spots most likely to look "wrong" to someone unfamiliar with the
-  reasoning above.
-- Non-obvious individual lines (formulas, unit conversions, clamps/edge cases,
-  hardcoded numbers) get a short inline comment. Not every line — just the ones that
-  aren't self-explanatory.
-- Config files get a one-line comment on anything non-default; no need to explain
-  standard boilerplate.
-
-## Running this project
-
-```
-npm run dev     # start the local dev server (usually http://localhost:3000)
-npm test        # run the Vitest unit tests for the simulation engine
-npm run build   # production build
-npm run lint    # ESLint
-```
-
-## Prompting Claude Code on this repo
-
-Start future sessions with something like:
-
-> Read README.md first — don't re-litigate any of the locked decisions in it; if a
-> change requires revisiting one, say so explicitly before writing code.
-> `lib/v2g-simulation.ts` must stay framework-free (no React/UI imports) and
-> test-covered — any change to dispatch behavior needs a matching test update in the
-> same turn. Run `npm test` before and after any engine change, and show me the diff
-> before touching UI components that consume `useSimulationResult()` or
-> `useSensitivityMatrix()` (they feed every result component on the page, so a bug
-> there is easy to miss).
-> Follow the Code Documentation Standard above — I'm new to this stack.
-
-## Changelog
-
-Tracks decisions, additions, and deviations from the original feature spec made
-**during implementation** — as opposed to "Locked decisions" above, which captures what
-was decided during planning, before any code existed. Entries are grouped by phase,
-newest first. For the full story behind any entry — what led to it, what was tried,
-what broke — see the matching file in `docs/dev-log/`.
-
-### Phase 8 — Testing Strategy
-
-- **Added `lib/__tests__/format.test.ts`**, not part of any earlier plan —
-  `lib/format.ts` had zero test coverage even though every number the user
-  sees on screen passes through one of its functions, so it was written to
-  close that gap before documenting the test suite as if it were complete.
-- **Added two regression tests to `lib/__tests__/v2g-simulation.test.ts`**
-  that turn a real finding from `docs/dev-log/phase-6-sensitivity-matrix.md`
-  — Reserve SoC has zero effect on outage Survival Hours — into permanent,
-  automated checks, following the same precedent set by Phase 2's own extra
-  "bonus" 7th test (an extra regression guard, not requested by the plan).
-- See `docs/dev-log/phase-8-testing-strategy.md` for the full walkthrough of
-  every test in the suite, and `docs/dev-log/test-recommendations.md` for
-  what's still recommended but not yet built.
-
-### Phase 7 — Presets and Polish
-
-- **Fixed a real mobile layout bug**: `TimeSlider.tsx`'s range input was
-  quietly forcing the whole page a few pixels wider than the viewport on
-  narrow screens, because a flex item's default `min-width: auto` overrides
-  `flex-1` unless explicitly cleared with `min-w-0`. Found by measuring
-  `document.documentElement.scrollWidth` against `clientWidth`, not by eye —
-  the page didn't visibly look broken.
-- **Fixed a real accessibility gap**: the hour dropdowns' (`HourSelect.tsx`)
-  visible labels were never actually linked to their `<select>` elements —
-  fixed with `useId()` + matching `htmlFor`/`id`.
-- **Added the input-validation guard the plan called for**: a visible
-  warning when the EV's Departure and Arrival times are set to the same
-  hour, since that's a legal, intentional configuration (README.md #5) but
-  an easy one to hit by accident, with a consequence (EV never charges,
-  discharges, or helps in a blackout) that's easy to misread as a bug
-  without an explanation.
-- **Three small README.md accuracy fixes** caught during this phase's
-  read-through pass: the "5 result components" claim in two places was
-  updated to match what's actually built (4: Executive Cards, the battery
-  chart, the flow diagram, the sensitivity table), and `lib/reference-data.ts`
-  (added in Phase 3) was missing from the Project Structure listing.
-
-### Phase 6 — Sensitivity Matrix Table
-
-- **Extended `SensitivityMatrixCell` with a `survivalHoursCombinedExhausted`
-  flag**, not in the original type definition — the matrix was already
-  computing this internally but not returning it, so the table couldn't
-  distinguish "168 hours, exactly" from "168+, hit the simulation's cap" the
-  way every other survival-hours display in the app can.
-- **The heatmap color always encodes magnitude, never "good vs. bad."**
-  Darker means "a bigger number" for both Payback Years (where bigger is
-  worse) and Survival Hours (where bigger is better) — a ramp that flipped
-  meaning per metric would be more confusing, not less.
-- **Confirmed by testing, not a bug: Reserve SoC has zero effect on Survival
-  Hours** — only Stationary Capacity does. This falls directly out of
-  decision #4 above (the stationary battery always drains to 0% in an
-  outage, regardless of its reserve setting), but seeing the matrix render
-  as a flat, uniform color under default settings was a useful, if initially
-  alarming-looking, confirmation that the engine matches the spec.
-
-### Phase 5 — Energy Flow Diagram
-
-- **Grid does not get its own categorical color in the diagram — it uses the
-  same neutral gray as the "EV plugged in" band.** A flow is colored by
-  whichever node sources it (Solar/Battery/EV/Grid = 4 possible identities),
-  but this project's colorblind-safety validator confirmed no 4-color set
-  passes the "any two marks might be neighbors" check that a diagram like
-  this actually needs (two flows really can be visually adjacent in the same
-  hour). At most 3 categorical hues can pass that check, so Grid — the
-  fallback/utility source, not a sized "asset" like the other three — uses
-  neutral gray instead.
-- **Battery and EV reuse the exact same blue/orange from the Phase 4 chart**,
-  rather than getting new colors for this diagram — color follows the
-  entity across the whole app, not just within one chart.
-- **The diagram defaults to showing noon**, not the visitor's real-world
-  current time — using real time would make the server-rendered and
-  client-rendered markup disagree (a hydration mismatch), since the server
-  doesn't know the visitor's clock.
-
-### Phase 4 — Executive Cards + Dual-Battery Chart
-
-- **Dual-Battery Chart implemented as two lines, not a stacked area.** The original
-  feature list named this component a "stack chart," but Stationary Battery SoC% and EV
-  Battery SoC% don't sum to anything meaningful — they're two independent batteries
-  sharing a 0–100% axis, not parts of one whole. A stacked area would have visually
-  implied a "combined fullness" number that doesn't exist.
-- **Added a table-view toggle to the chart** — not requested anywhere in the original
-  spec. Added because a plain-table equivalent for every chart is a non-negotiable
-  accessibility requirement under the data-visualization guidance this project follows,
-  not an optional extra.
-- **Added a dedicated, colorblind-validated chart color palette**
-  (`--chart-series-1`/`--chart-series-2`/etc. in `app/globals.css`), kept separate from
-  the sidebar's emerald accent color.
-- **The "Combined Resilience Backup" card shows one headline value plus a delta line**,
-  not two equally-weighted numbers. The spec's "Hours with EV vs. Stationary Only" was
-  read as "how much does the EV help" — so the combined figure leads, and
-  stationary-only appears as a smaller comparison line underneath.
-
-### Phase 3 — Zustand Store and Sidebar Controls
-
-- **Added `lib/reference-data.ts`**, a small module centralizing the three JSON imports,
-  not listed in the original project structure — introduced so every later file that
-  needs the reference data imports from one place instead of re-importing and
-  re-casting the raw JSON itself.
-- **No headless browser existed in the environment to visually verify the app.**
-  Installing one (Playwright + Chromium) required working around missing system
-  libraries without root access — downloading the specific `.deb` packages directly and
-  pointing Chromium at them via `LD_LIBRARY_PATH`, rather than a normal `apt install`.
-  This setup lives outside the repo and isn't saved anywhere, but it's what made real
-  browser screenshots possible as verification from this phase onward.
-
-### Phase 2 — Simulation Engine
-
-- **`vitest.config.ts` was renamed to `vitest.config.mts`** after a module-loading error
-  on the first test run — not a behavior change, just a required filename fix for this
-  version of Vitest.
-- **The test suite includes a 7th, "bonus" test** beyond the 6 specified in the plan,
-  checking that a sensitivity-matrix cell's math matches calling the engine directly —
-  an extra regression guard, not requested by the plan.
-
-### Phase 1 — Scaffold, Data, and README
-
-- **`README.md` was written in Phase 1, not deferred to the final polish phase** as the
-  original phased build order specified — moved earlier at your request, so it would
-  exist as a reference from the start of the repo rather than only being assembled at
-  the end.
-- **The npm package name differs from the repository folder name**
-  (`pv-grid-simulator` vs. `PV-grid-simulator`) — npm package names can't contain
-  capital letters, so the folder kept its name but `package.json`'s `"name"` field was
-  set to the lowercase form.
+[PLACEHOLDER: name, email/portfolio link, or LinkedIn]

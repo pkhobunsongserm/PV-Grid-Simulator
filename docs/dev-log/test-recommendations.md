@@ -224,7 +224,7 @@ performed by this pass — this document only recommends where they'd pay off
 
 - [`phase-8-testing-strategy.md`](phase-8-testing-strategy.md) — the
   plain-language walkthrough of every test that exists today.
-- [README.md](../../README.md)'s "Locked decisions" section — the source of
+- [design-document.md](design-document.md)'s "Locked decisions" section — the source of
   truth for *why* the engine behaves the way it does; several of the test
   recommendations above (especially anything touching Reserve SoC, the EV
   discharge floor, or outage rules) only make sense with that section as

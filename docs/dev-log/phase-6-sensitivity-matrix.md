@@ -94,7 +94,7 @@ piece of the original feature spec's Visualization Dashboard exists.
   by column (Stationary Capacity), never by row (Reserve SoC). That's
   correct, not a bug either: the engine deliberately drains the stationary
   battery to 0% in any outage regardless of its reserve setting (see
-  README.md decision #4), so Reserve SoC genuinely has zero effect on
+  design-document.md decision #4), so Reserve SoC genuinely has zero effect on
   survival time — only on the *Payback* metric, where it does vary by row,
   since it affects everyday (non-outage) dispatch and cost.
 

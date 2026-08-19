@@ -154,7 +154,7 @@ happens to exactly match the reference data's own daily total, the scaling
 ratio in this specific case is 1 — the demand curve isn't being stretched or
 shrunk — which is what makes a fully independent hand-computation possible
 and exact here, rather than needing to reimplement the scaling formula too.
-Ties to README.md **Locked decision #7** (the baseline reuses the real
+Ties to design-document.md **Locked decision #7** (the baseline reuses the real
 dispatch function rather than a second, hand-written cost formula).
 
 ### `test("midday solar surplus charges the stationary battery with zero grid import")`
@@ -168,7 +168,7 @@ battery a large, mostly-empty capacity (30kWh, starting at 0%) so it can
 never hit a capacity or rate-limit ceiling that would obscure what's being
 tested. It asserts `gridImportKw` is (approximately) zero that hour, and that
 the battery's charge level rose by *exactly* the surplus amount between hour
-8 and hour 9. Ties to README.md **Locked decision #3** (dispatch priority
+8 and hour 9. Ties to design-document.md **Locked decision #3** (dispatch priority
 order).
 
 ### `test("stationary battery never discharges below its reserve floor in normal operation")`
@@ -186,7 +186,7 @@ one. A second assertion below that loop checks the test is actually
 exercising real discharge behavior during Evening Peak (not trivially
 passing because the battery just never tried to discharge at all) — without
 that second check, a battery that never discharged *at all* would also
-"pass" the floor check, for the wrong reason. Ties to README.md **Locked
+"pass" the floor check, for the wrong reason. Ties to design-document.md **Locked
 decision #4** (Reserve SoC as a normal-operation floor).
 
 ### `test("EV contributes zero resilience when it's away at the moment the blackout starts")`
@@ -199,7 +199,7 @@ available to help) later that same day. The test sets up a commute schedule
 that's away at midnight (departs 10pm, returns 6am) and starts the blackout
 at hour 0, then asserts the "combined" (stationary + EV) and "stationary-only"
 survival numbers are identical — proving the EV genuinely added nothing.
-Ties to README.md **Locked decision #6** (outage rules).
+Ties to design-document.md **Locked decision #6** (outage rules).
 
 ### `test("EV never discharges (V2G) outside Evening Peak hours")`
 
@@ -211,7 +211,7 @@ could cover. The test removes the stationary battery entirely (so it can't
 "absorb" the unmet demand and mask what's being tested), then checks
 midnight specifically — an Off-Peak hour where the EV is plugged in by
 default — and asserts `evDischargeKw` is zero and the entirety of that
-hour's unmet demand instead shows up as a grid import. Ties to README.md
+hour's unmet demand instead shows up as a grid import. Ties to design-document.md
 **Locked decision #3** (dispatch priority order, the V2G-during-Evening-Peak-
 only step specifically).
 
@@ -227,7 +227,7 @@ at all (it would stay positive). It checks the charge right before departure
 (still at the starting amount), right at departure (zero), and then loops
 over every remaining hour of the day confirming it's never negative anywhere
 else — ruling out the deduction being incorrectly reapplied later. Ties to
-README.md **Locked decision #5** (EV commute mechanics).
+design-document.md **Locked decision #5** (EV commute mechanics).
 
 ### `test("a zero-battery sensitivity matrix cell matches calling the engine directly")`
 
@@ -248,7 +248,7 @@ equivalent inputs, then asserts the payback figure, survival hours, and the
 "exhausted" flag all match exactly. If a future change ever gave the matrix
 sweep its own slightly-different copy of this math — even a well-intentioned
 optimization — this test would catch the two paths disagreeing immediately.
-Ties to README.md **Locked decision #8** (sensitivity matrix axes), read
+Ties to design-document.md **Locked decision #8** (sensitivity matrix axes), read
 through the lens of Phase 2's own regression-guard reasoning above.
 
 ### The two new regression tests (this phase)
@@ -264,7 +264,7 @@ always allowed to drain to 0% during a simulated outage, so its Reserve SoC
 setting has literally zero effect on how long it lasts in a blackout — only
 Stationary Capacity does. This is exactly the kind of thing a future
 contributor, staring at a flat-colored matrix and having never read that
-dev-log entry, could plausibly "fix" by mistake, breaking README.md **Locked
+dev-log entry, could plausibly "fix" by mistake, breaking design-document.md **Locked
 decision #4** in the process. Writing it as prose in a dev-log entry records
 *that it was found*; writing it as a test is what actually stops it from
 regressing silently. This is the same idea as the "bonus regression guard"
@@ -277,7 +277,7 @@ builds two otherwise-identical scenarios differing only in
 `battery.reserveSocPct` (10% vs. 70%), runs `runFullSimulation()` on both,
 and asserts the resulting `outageCombined.survivalHours` and
 `outageStationaryOnly.survivalHours` are equal. Getting a clean, honest
-comparison here took some care: this app's normal rule (README.md **Locked
+comparison here took some care: this app's normal rule (design-document.md **Locked
 decision #10**) is that `battery.startingSocPct` defaults to matching
 `reserveSocPct`, and `runSensitivityMatrix()` follows that same rule per row
 — but if this test let the two scenarios' *starting* charge differ too, any
@@ -293,7 +293,7 @@ battery) is ever actually reached. The test explicitly asserts the two
 scenarios really do enter the blackout at the same charge level (8.65kWh in
 both, confirmed by running the actual computation) before comparing survival
 hours — otherwise a match wouldn't prove anything about the reserve floor
-specifically. Ties to README.md **Locked decision #4** again, as a direct
+specifically. Ties to design-document.md **Locked decision #4** again, as a direct
 confirmation of "the stationary battery always drains to 0% in an outage
 regardless of reserve."
 
@@ -314,7 +314,7 @@ setting.
 Every number the user actually sees on screen — a dollar figure, a payback
 period, a survival-hours reading, a percentage, an hour-of-day label — passes
 through one of the seven functions in `lib/format.ts` on its way there. These
-tests group naturally by function rather than by README.md decision, since
+tests group naturally by function rather than by design-document.md decision, since
 formatting logic doesn't carry the same "why does the app behave this way"
 weight the engine's dispatch rules do — but that doesn't mean it's not worth
 testing.
@@ -324,7 +324,7 @@ testing.
   confirming a scenario that costs money rather than saves it still renders
   with a sensible minus sign rather than something broken).
 - **`formatPaybackYears`** — `null` (what `computeFinancials()` returns when
-  a scenario never pays for itself, per README.md #9) must render as exactly
+  a scenario never pays for itself, per design-document.md #9) must render as exactly
   `"N/A"`, never `"null"` or `"NaN"`. A normal number renders to one decimal
   place — the test uses `10.14`, the exact figure from Phase 3's dev-log
   entry about the Reserve SoC slider's effect on payback, which conveniently

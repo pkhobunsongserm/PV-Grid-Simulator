@@ -13,9 +13,9 @@ This file is written for two different readers at once, on purpose:
   the whole picture in plain language.
 - **If you're picking up development** (you, in a future session, or someone
   else): keep going through the rest of this file, then follow its pointers
-  out to [`README.md`](../../README.md) — that's the actual source of truth
-  for how the app behaves and why; this file is a summary and a map, not a
-  replacement for it.
+  out to [`design-document.md`](design-document.md) — that's the actual
+  source of truth for how the app behaves and why; this file is a summary and
+  a map, not a replacement for it.
 
 ## Executive Summary
 
@@ -123,25 +123,25 @@ full story — including what went wrong and how it was fixed — lives in
 - **Where the code lives**: `lib/` holds all the calculation logic with zero
   UI code in it (this is what makes it testable in isolation); `store/` holds
   the current slider values; `hooks/` connects the store to the calculations;
-  `components/` holds everything visual. Full breakdown in `README.md`'s
-  "Project structure" section.
+  `components/` holds everything visual. Full breakdown in
+  `design-document.md`'s "Project structure" section.
 - **Three commands you need**: `npm run dev` (start it locally), `npm test`
   (run the automated tests), `npm run build` (production build / full
   type-check).
-- **Before changing any calculation logic**, read `README.md`'s "Locked
-  decisions" section (11 numbered rules) — it documents *why* the engine
-  behaves the way it does, so a change that seems like an obvious fix doesn't
-  accidentally break something that was deliberate.
+- **Before changing any calculation logic**, read `design-document.md`'s
+  "Locked decisions" section (11 numbered rules) — it documents *why* the
+  engine behaves the way it does, so a change that seems like an obvious fix
+  doesn't accidentally break something that was deliberate.
 - **Code comments throughout the project** are written for someone
   comfortable with code but new to this specific stack — every file explains
-  what it's for and why, not just what it does. See `README.md`'s "Code
-  documentation standard" section.
+  what it's for and why, not just what it does. See `design-document.md`'s
+  "Code documentation standard" section.
 
 ## Known Limitations (intentional, not bugs)
 
 These are real simplifications the app makes on purpose, documented in
-`README.md`'s "Locked decisions" — worth knowing about before trusting the
-numbers for a real financial decision:
+`design-document.md`'s "Locked decisions" — worth knowing about before
+trusting the numbers for a real financial decision:
 
 - The battery and EV only ever charge from **free excess solar power**, never
   by deliberately buying cheap grid electricity to use later — a real
@@ -213,7 +213,8 @@ originally prioritized:
 
 | Looking for... | Go to |
 |---|---|
-| How the app is supposed to behave, and why | [`README.md`](../../README.md) |
+| How the app is supposed to behave, and why | [`design-document.md`](design-document.md) |
+| The portfolio-facing overview (features, setup, tech stack) | [`README.md`](../../README.md) |
 | The build story, phase by phase | [`docs/dev-log/`](README.md) |
 | What's tested today, explained simply | [`phase-8-testing-strategy.md`](phase-8-testing-strategy.md) |
 | What testing to add next, plus a manual checklist | [`test-recommendations.md`](test-recommendations.md) |
