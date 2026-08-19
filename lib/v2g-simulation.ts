@@ -21,6 +21,7 @@ import {
 } from "./constants";
 import type {
   SimulationInputs,
+  EVConfig,
   ScaledProfiles,
   SolarProfileData,
   HouseholdLoadData,
@@ -119,6 +120,25 @@ export function isEvAway(hour: number, departureHour: number, arrivalHour: numbe
   return hour >= departureHour || hour < arrivalHour;
 }
 
+/**
+ * Returns the EV config to actually simulate with. If the household doesn't
+ * own an EV (`ownsEv: false`), this zeroes out BOTH capacity and schedule —
+ * not just capacity — because they neutralize two different things:
+ *   - capacityKwh: 0 makes every charge/discharge amount compute to exactly 0
+ *     (the room/discharge formulas in runHourlyDispatch all bottom out at 0
+ *     when there's no capacity to fill or drain).
+ *   - departureHour === arrivalHour makes isEvAway() return true for every
+ *     hour (see its own doc comment above), which is what actually drives
+ *     HourlyState.evPluggedIn to false all day — capacity alone has NO effect
+ *     on evPluggedIn, since it's derived purely from the schedule.
+ * Without the schedule half of this fix, a household with no EV would still
+ * show "EV plugged in" during its old commute hours. This reuses the exact
+ * "always away" convention computeBaselineScenario() already relies on.
+ */
+export function getEffectiveEVConfig(ev: EVConfig): EVConfig {
+  return ev.ownsEv ? ev : { ...ev, capacityKwh: 0, departureHour: 0, arrivalHour: 0 };
+}
+
 // =============================================================================
 // 3. THE MAIN 24-HOUR DISPATCH LOOP
 // =============================================================================
@@ -145,15 +165,21 @@ export function runHourlyDispatch(
   scaled: ScaledProfiles,
   tariff: TariffSchedule
 ): SimulationResult {
+  // Whichever EV config is actually simulated — the household's own settings,
+  // or a capacity-and-schedule-zeroed stand-in if they don't own an EV. See
+  // getEffectiveEVConfig()'s doc comment for why both need zeroing, not just
+  // capacity.
+  const ev = getEffectiveEVConfig(inputs.ev);
+
   // Starting charge levels, converted from a percentage into an actual kWh
   // amount, since that's what we'll be adding/subtracting power to/from.
   let stationarySocKwh = (inputs.battery.startingSocPct / 100) * inputs.battery.capacityKwh;
-  let evSocKwh = (inputs.ev.startingSocPct / 100) * inputs.ev.capacityKwh;
+  let evSocKwh = (ev.startingSocPct / 100) * ev.capacityKwh;
 
   // The "floor" each battery isn't allowed to discharge below, expressed in kWh
   // rather than percent so it's directly comparable to the charge levels above.
   const reserveFloorKwh = (inputs.battery.reserveSocPct / 100) * inputs.battery.capacityKwh;
-  const evFloorKwh = (inputs.ev.dischargeFloorPct / 100) * inputs.ev.capacityKwh;
+  const evFloorKwh = (ev.dischargeFloorPct / 100) * ev.capacityKwh;
 
   const hourlyStates: HourlyState[] = [];
 
@@ -162,11 +188,11 @@ export function runHourlyDispatch(
     // it leaves for the day, before anything else happens this hour. See
     // README.md #5 — this is a single round-trip total, not tracked separately
     // for the outbound vs. return legs. Clamped at 0 so it can never go negative.
-    if (hour === inputs.ev.departureHour) {
-      evSocKwh = Math.max(0, evSocKwh - inputs.ev.dailyCommuteKwh);
+    if (hour === ev.departureHour) {
+      evSocKwh = Math.max(0, evSocKwh - ev.dailyCommuteKwh);
     }
 
-    const pluggedIn = !isEvAway(hour, inputs.ev.departureHour, inputs.ev.arrivalHour);
+    const pluggedIn = !isEvAway(hour, ev.departureHour, ev.arrivalHour);
     const tariffEntry = tariff.hourly_schedule[hour];
 
     const solarKw = scaled.generation_kw[hour];
@@ -189,10 +215,7 @@ export function runHourlyDispatch(
     // --- Step 3: remaining solar surplus charges the EV, if it's home ---
     let evChargeKw = 0;
     if (pluggedIn) {
-      const evChargeRoomKw = Math.max(
-        0,
-        Math.min(inputs.ev.chargerPowerKw, inputs.ev.capacityKwh - evSocKwh)
-      );
+      const evChargeRoomKw = Math.max(0, Math.min(ev.chargerPowerKw, ev.capacityKwh - evSocKwh));
       evChargeKw = Math.min(remainingSolarKw, evChargeRoomKw);
       evSocKwh += evChargeKw * HOURS_PER_STEP;
       remainingSolarKw -= evChargeKw;
@@ -215,7 +238,7 @@ export function runHourlyDispatch(
     let evDischargeKw = 0;
     if (pluggedIn && tariffEntry.period === "Evening Peak") {
       const evDischargeRoomKw = Math.max(0, evSocKwh - evFloorKwh);
-      evDischargeKw = Math.min(unmetDemandKw, inputs.ev.chargerPowerKw, evDischargeRoomKw);
+      evDischargeKw = Math.min(unmetDemandKw, ev.chargerPowerKw, evDischargeRoomKw);
       evSocKwh -= evDischargeKw * HOURS_PER_STEP;
       unmetDemandKw -= evDischargeKw;
     }
@@ -232,7 +255,7 @@ export function runHourlyDispatch(
       stationarySocPct:
         inputs.battery.capacityKwh > 0 ? (stationarySocKwh / inputs.battery.capacityKwh) * 100 : 0,
       evSocKwh,
-      evSocPct: inputs.ev.capacityKwh > 0 ? (evSocKwh / inputs.ev.capacityKwh) * 100 : 0,
+      evSocPct: ev.capacityKwh > 0 ? (evSocKwh / ev.capacityKwh) * 100 : 0,
       evPluggedIn: pluggedIn,
       stationaryChargeKw,
       stationaryDischargeKw,
@@ -313,7 +336,10 @@ export function computeFinancials(
   const totalCapex =
     inputs.battery.capacityKwh * inputs.capex.batteryCostPerKwh +
     inputs.solar.capacityKw * inputs.capex.solarCostPerKw +
-    inputs.capex.v2gChargerFixedCost;
+    // A household with no EV isn't buying a V2G charger — this is a flat
+    // cost, not driven by EV capacity, so getEffectiveEVConfig()'s zeroing
+    // trick doesn't reach it; it needs its own explicit ownsEv check.
+    (inputs.ev.ownsEv ? inputs.capex.v2gChargerFixedCost : 0);
 
   // If the configuration doesn't actually save any money (or costs more), a
   // "payback period" is meaningless — report null ("N/A") instead of a negative
@@ -362,7 +388,12 @@ export function runOutageSimulation(
 ): OutageResult {
   let stationaryEnergyKwh = Math.max(0, stationarySocAtBlackoutKwh);
 
-  const evFloorKwh = (inputs.ev.dischargeFloorPct / 100) * inputs.ev.capacityKwh;
+  // Defensive normalization — see getEffectiveEVConfig()'s doc comment. The
+  // caller should already be passing an evSocAtBlackoutKwh/evPluggedInAtBlackout
+  // that came from a normalized dispatch run, but computing the floor from the
+  // normalized config too keeps this function correct on its own.
+  const ev = getEffectiveEVConfig(inputs.ev);
+  const evFloorKwh = (ev.dischargeFloorPct / 100) * ev.capacityKwh;
   let evEnergyKwh =
     includeEV && evPluggedInAtBlackout ? Math.max(0, evSocAtBlackoutKwh - evFloorKwh) : 0;
 
@@ -526,7 +557,8 @@ export function runSensitivityMatrix(
       return {
         reserveSocPct,
         stationaryCapacityKwh,
-        combinedCapacityKwh: stationaryCapacityKwh + cellInputs.ev.capacityKwh,
+        combinedCapacityKwh:
+          stationaryCapacityKwh + getEffectiveEVConfig(cellInputs.ev).capacityKwh,
         paybackYears: financials.paybackYears,
         survivalHoursCombined: combinedOutage.survivalHours,
         survivalHoursCombinedExhausted: combinedOutage.exhausted,

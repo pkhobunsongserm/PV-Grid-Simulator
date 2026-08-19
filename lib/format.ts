@@ -23,14 +23,26 @@ export function formatPaybackYears(years: number | null): string {
   return `${years.toFixed(1)} yrs`;
 }
 
-/** Formats a survival-hours number for display. Whole hours show as e.g. "14h";
- * anything with a fractional hour shows one decimal, e.g. "14.5h". If the outage
- * simulation hit its safety cap without running out (see OUTAGE_SIMULATION_CAP_HOURS
- * in lib/constants.ts), display it as "168+h" rather than a specific number, since
- * we don't actually know how much further it would have lasted. */
+/** Formats a survival-hours number for display, broken into days and hours
+ * (e.g. 30.5 -> "1d 6.5h") rather than one big hours-only number. Under 24
+ * hours, no "0d" prefix is shown — it reads exactly as a plain hours figure
+ * ("14h", or "14.5h" for a fractional hour), so short outages aren't
+ * cluttered with a day count of zero. If the outage simulation hit its
+ * safety cap without running out (see OUTAGE_SIMULATION_CAP_HOURS in
+ * lib/constants.ts), we genuinely don't know how much further it would have
+ * lasted, so it displays as "Infinite" rather than a specific number. */
 export function formatSurvivalHours(hours: number, exhausted: boolean): string {
-  if (!exhausted) return `${Math.floor(hours)}+h`;
-  return Number.isInteger(hours) ? `${hours}h` : `${hours.toFixed(1)}h`;
+  if (!exhausted) return "Infinite";
+
+  const days = Math.floor(hours / 24);
+  // Rounded to 1 decimal BEFORE the Number.isInteger() check below, so
+  // floating-point noise (e.g. a subtraction landing on 6.000000000000001
+  // instead of exactly 6) can't sneak in a pointless ".0" that a genuinely
+  // whole number of hours wouldn't get.
+  const remainingHours = Math.round((hours - days * 24) * 10) / 10;
+  const hoursLabel = Number.isInteger(remainingHours) ? `${remainingHours}h` : `${remainingHours.toFixed(1)}h`;
+
+  return days > 0 ? `${days}d ${hoursLabel}` : hoursLabel;
 }
 
 /** Formats a percentage value (0-100) for display, e.g. 42.5 -> "43%". Rounds to

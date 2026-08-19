@@ -60,6 +60,7 @@ export function SensitivityMatrixTable() {
   // "exact match") is what's actually useful here.
   const currentReserveSocPct = useSimulationStore((s) => s.inputs.battery.reserveSocPct);
   const currentCapacityKwh = useSimulationStore((s) => s.inputs.battery.capacityKwh);
+  const ownsEv = useSimulationStore((s) => s.inputs.ev.ownsEv);
 
   const { nearestRowIndex, nearestColIndex } = useMemo(() => {
     const rowSteps = matrix.map((row) => row[0].reserveSocPct);
@@ -124,8 +125,9 @@ export function SensitivityMatrixTable() {
       </div>
 
       <p className="mb-3 text-xs" style={{ color: "var(--chart-muted)" }}>
-        Rows: Stationary Reserve SoC. Columns: Stationary Battery Capacity (EV capacity
-        stays fixed at your current setting — see README.md). Darker cells are a{" "}
+        Rows: Stationary Reserve SoC. Columns: Stationary Battery Capacity
+        {ownsEv ? " (EV capacity stays fixed at your current setting)" : " (no EV in this household)"}.
+        Darker cells are a{" "}
         <em>higher</em> {metric === "payback" ? "payback (worse)" : "survival time (better)"} —
         color always tracks magnitude, not &ldquo;good vs. bad,&rdquo; since the two metrics
         point in opposite directions. The outlined cell is closest to your current sliders.
@@ -141,9 +143,15 @@ export function SensitivityMatrixTable() {
               {matrix[0].map((cell) => (
                 <th key={cell.stationaryCapacityKwh} className="px-2 py-1 font-medium" style={{ color: "var(--chart-text-primary)" }}>
                   {cell.stationaryCapacityKwh} kWh
-                  <div className="text-[10px] font-normal" style={{ color: "var(--chart-muted)" }}>
-                    {cell.combinedCapacityKwh} kWh combined
-                  </div>
+                  {/* With no EV, combinedCapacityKwh always equals
+                   * stationaryCapacityKwh (see getEffectiveEVConfig() in
+                   * lib/v2g-simulation.ts) — showing it here would just
+                   * repeat the number above for no reason. */}
+                  {ownsEv && (
+                    <div className="text-[10px] font-normal" style={{ color: "var(--chart-muted)" }}>
+                      {cell.combinedCapacityKwh} kWh combined
+                    </div>
+                  )}
                 </th>
               ))}
             </tr>

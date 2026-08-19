@@ -332,4 +332,102 @@ describe("v2g-simulation engine", () => {
       expect(survivalHours).toBeCloseTo(survivalHoursInColumn[0], 6);
     }
   });
+
+  // ---------------------------------------------------------------------------
+  // Test 7: opting out of EV ownership (ev.ownsEv: false) must stop the V2G
+  // charger's fixed cost from being counted in totalCapex — it's a flat cost
+  // (not driven by EV capacity), so it needs its own explicit check separate
+  // from getEffectiveEVConfig()'s capacity/schedule zeroing. Confirms both the
+  // exact dollar difference AND that the opted-out total matches a hand
+  // computation with no EV term at all.
+  // ---------------------------------------------------------------------------
+  test("opting out of EV ownership excludes the V2G charger cost from totalCapex", () => {
+    const ownedInputs = DEFAULT_SIMULATION_INPUTS; // ownsEv: true by default
+    const optedOutInputs: SimulationInputs = {
+      ...DEFAULT_SIMULATION_INPUTS,
+      ev: { ...DEFAULT_SIMULATION_INPUTS.ev, ownsEv: false },
+    };
+
+    const owned = runFullSimulation(ownedInputs, tariff, refSolar, refLoad);
+    const optedOut = runFullSimulation(optedOutInputs, tariff, refSolar, refLoad);
+
+    expect(owned.financials.totalCapex - optedOut.financials.totalCapex).toBeCloseTo(
+      DEFAULT_SIMULATION_INPUTS.capex.v2gChargerFixedCost,
+      6
+    );
+
+    const expectedOptedOutCapex =
+      DEFAULT_SIMULATION_INPUTS.battery.capacityKwh * DEFAULT_SIMULATION_INPUTS.capex.batteryCostPerKwh +
+      DEFAULT_SIMULATION_INPUTS.solar.capacityKw * DEFAULT_SIMULATION_INPUTS.capex.solarCostPerKw;
+    expect(optedOut.financials.totalCapex).toBeCloseTo(expectedOptedOutCapex, 6);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Test 8: with ev.ownsEv set to false, the EV must be numerically inert for
+  // all 24 hours — no charge, no discharge, no state of charge, AND never shown
+  // as "plugged in" — even though departureHour/arrivalHour are left at their
+  // normal 8am/6pm defaults. That last part specifically locks in the
+  // SCHEDULE half of getEffectiveEVConfig()'s fix: zeroing capacityKwh alone
+  // zeroes charge/discharge/SoC (the room/discharge formulas bottom out at 0),
+  // but evPluggedIn is driven purely by the departure/arrival schedule via
+  // isEvAway(), completely independent of capacity — so this test would catch
+  // a regression that only zeroed capacity and forgot the schedule.
+  // ---------------------------------------------------------------------------
+  test("EV charge, discharge, SoC, and plugged-in status all stay off when the household doesn't own one", () => {
+    const inputs: SimulationInputs = {
+      ...DEFAULT_SIMULATION_INPUTS,
+      ev: { ...DEFAULT_SIMULATION_INPUTS.ev, ownsEv: false },
+    };
+    const scaled = scaleReferenceData(inputs, refSolar, refLoad);
+    const result = runHourlyDispatch(inputs, scaled, tariff);
+
+    for (const state of result.hourlyStates) {
+      expect(state.evChargeKw).toBeCloseTo(0, 6);
+      expect(state.evDischargeKw).toBeCloseTo(0, 6);
+      expect(state.evSocKwh).toBeCloseTo(0, 6);
+      expect(state.evSocPct).toBeCloseTo(0, 6);
+      expect(state.evPluggedIn).toBe(false);
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Test 9: the Sensitivity Matrix's "combined capacity" figure (stationary +
+  // EV, shown as each column's sub-label) must collapse to exactly the
+  // stationary capacity when the household doesn't own an EV — otherwise it
+  // would silently keep adding a phantom EV capacity nobody actually has.
+  // ---------------------------------------------------------------------------
+  test("sensitivity matrix combinedCapacityKwh collapses to stationaryCapacityKwh when EV is opted out", () => {
+    const inputs: SimulationInputs = {
+      ...DEFAULT_SIMULATION_INPUTS,
+      ev: { ...DEFAULT_SIMULATION_INPUTS.ev, ownsEv: false },
+    };
+    const matrix = runSensitivityMatrix(inputs, tariff, refSolar, refLoad, [0], [10]);
+    const cell = matrix[0][0];
+
+    expect(cell.stationaryCapacityKwh).toBe(10);
+    expect(cell.combinedCapacityKwh).toBe(cell.stationaryCapacityKwh);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Test 10: with the EV opted out, the "combined" and "stationary-only" outage
+  // survival figures must be identical — there's no EV to contribute anything.
+  // Uses the default commute schedule (8am-6pm) and default blackoutStartHour
+  // (18:00, when the EV would normally be freshly home and well-charged) so
+  // this genuinely proves the exclusion, rather than the EV happening to be
+  // away or empty for unrelated reasons (see Test 4, which tests that
+  // different scenario).
+  // ---------------------------------------------------------------------------
+  test("outageCombined equals outageStationaryOnly when the household doesn't own an EV", () => {
+    const inputs: SimulationInputs = {
+      ...DEFAULT_SIMULATION_INPUTS,
+      ev: { ...DEFAULT_SIMULATION_INPUTS.ev, ownsEv: false },
+    };
+    const result = runFullSimulation(inputs, tariff, refSolar, refLoad);
+
+    expect(result.outageCombined.survivalHours).toBeCloseTo(
+      result.outageStationaryOnly.survivalHours,
+      6
+    );
+    expect(result.outageCombined.exhausted).toBe(result.outageStationaryOnly.exhausted);
+  });
 });

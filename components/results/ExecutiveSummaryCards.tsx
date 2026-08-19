@@ -10,11 +10,13 @@
 
 import { TrendingUp, PiggyBank, ShieldCheck } from "lucide-react";
 import { useSimulationResult } from "@/hooks/useSimulationResult";
+import { useSimulationStore } from "@/store/useSimulationStore";
 import { StatCard } from "./StatCard";
 import { formatAud, formatPaybackYears, formatSurvivalHours, formatHoursDelta } from "@/lib/format";
 
 export function ExecutiveSummaryCards() {
   const { financials, outageCombined, outageStationaryOnly } = useSimulationResult();
+  const ownsEv = useSimulationStore((s) => s.inputs.ev.ownsEv);
 
   // How many EXTRA hours of blackout survival the EV adds on top of what the
   // stationary battery alone provides. This can never be negative — the EV
@@ -41,15 +43,30 @@ export function ExecutiveSummaryCards() {
       />
 
       <StatCard
-        label="Combined resilience backup"
+        label={ownsEv ? "Combined resilience backup" : "Resilience backup"}
         icon={<ShieldCheck className="h-4 w-4" aria-hidden="true" />}
         value={formatSurvivalHours(outageCombined.survivalHours, outageCombined.exhausted)}
         delta={
-          extraHoursFromEv > 0
-            ? { text: `${formatHoursDelta(extraHoursFromEv)} vs. stationary battery only`, tone: "good" }
-            : { text: "no added benefit from the EV in this scenario", tone: "neutral" }
+          // With no EV, there's nothing to compare against — dropping the
+          // delta line entirely avoids the misleading "no added benefit from
+          // the EV" wording, which reads as "you have one, it just didn't
+          // help" rather than "you don't have one". With an EV, the existing
+          // good/neutral distinction is unchanged.
+          !ownsEv
+            ? undefined
+            : extraHoursFromEv > 0
+              ? { text: `${formatHoursDelta(extraHoursFromEv)} vs. stationary battery only`, tone: "good" }
+              : { text: "no added benefit from the EV in this scenario", tone: "neutral" }
         }
-        caption={`stationary alone: ${formatSurvivalHours(outageStationaryOnly.survivalHours, outageStationaryOnly.exhausted)}`}
+        caption={
+          // With no EV, outageCombined already equals outageStationaryOnly —
+          // showing both numbers would just repeat the headline value, so the
+          // "stationary alone" comparison line only makes sense when there's
+          // an EV to compare against.
+          ownsEv
+            ? `stationary alone: ${formatSurvivalHours(outageStationaryOnly.survivalHours, outageStationaryOnly.exhausted)}`
+            : undefined
+        }
       />
     </div>
   );

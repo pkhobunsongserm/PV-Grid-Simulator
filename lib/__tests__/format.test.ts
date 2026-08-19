@@ -66,36 +66,42 @@ describe("format helpers", () => {
   // ---------------------------------------------------------------------------
   // formatSurvivalHours, exhausted: false branch — this is the "hit the
   // simulation's safety cap without running out" case (see
-  // OUTAGE_SIMULATION_CAP_HOURS in lib/constants.ts). The source deliberately
-  // uses Math.floor() here rather than rounding or truncating with toFixed(),
-  // because we genuinely don't know how much further the system would have
-  // lasted past the cap — so ANY fractional hour (168.4, 168.9, ...) should
-  // still print as "168+h", never showing a specific decimal that would imply
-  // more precision than the simulation actually has.
+  // OUTAGE_SIMULATION_CAP_HOURS in lib/constants.ts). We genuinely don't know
+  // how much further the system would have lasted past the cap, so this
+  // renders as the fixed string "Infinite" — deliberately ignoring the exact
+  // `hours` value passed in (168.4 vs. 168.9 makes no difference), since any
+  // specific number here would imply more precision than the simulation
+  // actually has.
   // ---------------------------------------------------------------------------
-  test('formatSurvivalHours renders the "+h" form when exhausted is false, regardless of the fractional part', () => {
-    expect(formatSurvivalHours(168.4, false)).toBe("168+h");
-    expect(formatSurvivalHours(168.9, false)).toBe("168+h");
+  test('formatSurvivalHours renders "Infinite" when exhausted is false, regardless of the hours value', () => {
+    expect(formatSurvivalHours(168.4, false)).toBe("Infinite");
+    expect(formatSurvivalHours(168.9, false)).toBe("Infinite");
   });
 
   // ---------------------------------------------------------------------------
-  // formatSurvivalHours, exhausted: true, whole-number hours — the source's
-  // Number.isInteger() check means a whole number shows with no decimal at
-  // all ("168h"), rather than an unnecessary "168.0h".
+  // formatSurvivalHours, exhausted: true, under 24 hours — no "0d" prefix
+  // should appear; this should read exactly like a plain hours figure, with
+  // the same whole-vs-fractional-hour behavior as before (whole hours get no
+  // decimal, e.g. "18h" not "18.0h").
   // ---------------------------------------------------------------------------
-  test("formatSurvivalHours renders a whole number of hours with no decimal when exhausted is true", () => {
-    expect(formatSurvivalHours(168, true)).toBe("168h");
-  });
-
-  // ---------------------------------------------------------------------------
-  // formatSurvivalHours, exhausted: true, fractional hours — the other side of
-  // the same Number.isInteger() branch: a genuinely fractional survival time
-  // (the outage simulator computes these when the batteries run dry partway
-  // through an hour — see runOutageSimulation()'s final "fraction of the hour"
-  // step in lib/v2g-simulation.ts) shows one decimal place.
-  // ---------------------------------------------------------------------------
-  test("formatSurvivalHours renders one decimal place for a fractional number of hours when exhausted is true", () => {
+  test("formatSurvivalHours renders a plain hours figure with no day count when under 24 hours", () => {
+    expect(formatSurvivalHours(18, true)).toBe("18h");
     expect(formatSurvivalHours(14.5, true)).toBe("14.5h");
+  });
+
+  // ---------------------------------------------------------------------------
+  // formatSurvivalHours, exhausted: true, 24 hours or more — now broken into
+  // a day count plus the remaining hours, e.g. 30.5 hours is 1 full day and
+  // 6.5 leftover hours, not "30.5h".
+  // ---------------------------------------------------------------------------
+  test("formatSurvivalHours breaks 24+ hours into days and hours", () => {
+    expect(formatSurvivalHours(30.5, true)).toBe("1d 6.5h");
+    expect(formatSurvivalHours(48, true)).toBe("2d 0h");
+    // 168 is the outage simulator's own safety cap (OUTAGE_SIMULATION_CAP_HOURS)
+    // — exactly 7 days, with exhausted:true meaning it ran out at PRECISELY the
+    // cap rather than surviving past it (see the "Infinite" test above for the
+    // "survived the whole cap" case).
+    expect(formatSurvivalHours(168, true)).toBe("7d 0h");
   });
 
   // ---------------------------------------------------------------------------

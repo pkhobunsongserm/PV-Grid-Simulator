@@ -36,6 +36,7 @@ import {
   type TooltipContentProps,
 } from "recharts";
 import { useSimulationResult } from "@/hooks/useSimulationResult";
+import { useSimulationStore } from "@/store/useSimulationStore";
 import { formatHourShort, formatHour } from "@/lib/format";
 import type { HourlyState } from "@/lib/types";
 
@@ -72,8 +73,12 @@ function findPluggedInIntervals(hourlyStates: HourlyState[]): { x1: number; x2: 
 
 /** Custom tooltip: values lead (bold), series names follow, each keyed with a
  * short line of its series color rather than a filled box. Also reports the
- * EV's plugged-in status, since that's central to reading this chart. */
-function ChartTooltip({ active, payload, label }: TooltipContentProps) {
+ * EV's plugged-in status, since that's central to reading this chart — when
+ * there is one. `ownsEv` is passed in explicitly (via a wrapper function
+ * passed as `content` below) rather than read from the store inside this
+ * component, since Recharts — not React's normal render tree — decides when
+ * and how `content` gets invoked. */
+function ChartTooltip({ active, payload, label, ownsEv }: TooltipContentProps & { ownsEv: boolean }) {
   if (!active || !payload || payload.length === 0) return null;
   const point = payload[0].payload as HourlyState;
 
@@ -92,27 +97,37 @@ function ChartTooltip({ active, payload, label }: TooltipContentProps) {
           {Math.round(point.stationarySocPct)}%
         </span>
       </div>
-      <div className="flex items-center gap-1.5">
-        <span className="inline-block h-0.5 w-3" style={{ backgroundColor: "var(--chart-series-2)" }} />
-        <span style={{ color: "var(--chart-text-secondary)" }}>EV</span>
-        <span className="font-semibold" style={{ color: "var(--chart-text-primary)" }}>
-          {Math.round(point.evSocPct)}%
-        </span>
-      </div>
-      <div className="mt-1 text-xs" style={{ color: "var(--chart-muted)" }}>
-        EV is {point.evPluggedIn ? "plugged in at home" : "away (commuting)"}
-      </div>
+      {ownsEv && (
+        <>
+          <div className="flex items-center gap-1.5">
+            <span className="inline-block h-0.5 w-3" style={{ backgroundColor: "var(--chart-series-2)" }} />
+            <span style={{ color: "var(--chart-text-secondary)" }}>EV</span>
+            <span className="font-semibold" style={{ color: "var(--chart-text-primary)" }}>
+              {Math.round(point.evSocPct)}%
+            </span>
+          </div>
+          <div className="mt-1 text-xs" style={{ color: "var(--chart-muted)" }}>
+            EV is {point.evPluggedIn ? "plugged in at home" : "away (commuting)"}
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
 export function DualBatteryChart() {
   const { configured } = useSimulationResult();
+  const ownsEv = useSimulationStore((s) => s.inputs.ev.ownsEv);
   const [showTable, setShowTable] = useState(false);
 
+  // Only bother computing plugged-in shading if there's an EV to shade for —
+  // with no EV, evPluggedIn is already false all day (see getEffectiveEVConfig
+  // in lib/v2g-simulation.ts), so this would just return an empty array, but
+  // skipping the call entirely keeps the "no EV" case obviously correct rather
+  // than relying on that fact.
   const pluggedInIntervals = useMemo(
-    () => findPluggedInIntervals(configured.hourlyStates),
-    [configured.hourlyStates]
+    () => (ownsEv ? findPluggedInIntervals(configured.hourlyStates) : []),
+    [configured.hourlyStates, ownsEv]
   );
 
   return (
@@ -154,8 +169,12 @@ export function DualBatteryChart() {
                 <th className="px-2 py-1 font-medium">Hour</th>
                 <th className="px-2 py-1 font-medium">Period</th>
                 <th className="px-2 py-1 font-medium tabular-nums">Stationary SoC</th>
-                <th className="px-2 py-1 font-medium tabular-nums">EV SoC</th>
-                <th className="px-2 py-1 font-medium">EV Status</th>
+                {ownsEv && (
+                  <>
+                    <th className="px-2 py-1 font-medium tabular-nums">EV SoC</th>
+                    <th className="px-2 py-1 font-medium">EV Status</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -164,8 +183,12 @@ export function DualBatteryChart() {
                   <td className="px-2 py-1 tabular-nums">{formatHour(state.hour)}</td>
                   <td className="px-2 py-1">{state.period}</td>
                   <td className="px-2 py-1 tabular-nums">{Math.round(state.stationarySocPct)}%</td>
-                  <td className="px-2 py-1 tabular-nums">{Math.round(state.evSocPct)}%</td>
-                  <td className="px-2 py-1">{state.evPluggedIn ? "Plugged in" : "Away"}</td>
+                  {ownsEv && (
+                    <>
+                      <td className="px-2 py-1 tabular-nums">{Math.round(state.evSocPct)}%</td>
+                      <td className="px-2 py-1">{state.evPluggedIn ? "Plugged in" : "Away"}</td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -206,7 +229,10 @@ export function DualBatteryChart() {
                 width={40}
               />
 
-              <Tooltip content={ChartTooltip} cursor={{ stroke: "var(--chart-baseline)" }} />
+              <Tooltip
+                content={(props: TooltipContentProps) => <ChartTooltip {...props} ownsEv={ownsEv} />}
+                cursor={{ stroke: "var(--chart-baseline)" }}
+              />
 
               <Line
                 type="monotone"
@@ -218,16 +244,18 @@ export function DualBatteryChart() {
                 activeDot={{ r: 4, stroke: "var(--chart-surface)", strokeWidth: 2 }}
                 isAnimationActive={false}
               />
-              <Line
-                type="monotone"
-                dataKey="evSocPct"
-                name="EV Battery"
-                stroke="var(--chart-series-2)"
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4, stroke: "var(--chart-surface)", strokeWidth: 2 }}
-                isAnimationActive={false}
-              />
+              {ownsEv && (
+                <Line
+                  type="monotone"
+                  dataKey="evSocPct"
+                  name="EV Battery"
+                  stroke="var(--chart-series-2)"
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4, stroke: "var(--chart-surface)", strokeWidth: 2 }}
+                  isAnimationActive={false}
+                />
+              )}
             </LineChart>
           </ResponsiveContainer>
 
@@ -239,17 +267,21 @@ export function DualBatteryChart() {
               <span className="inline-block h-0.5 w-4" style={{ backgroundColor: "var(--chart-series-1)" }} />
               Stationary Battery
             </span>
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block h-0.5 w-4" style={{ backgroundColor: "var(--chart-series-2)" }} />
-              EV Battery
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span
-                className="inline-block h-3 w-4 rounded-sm"
-                style={{ backgroundColor: "var(--chart-muted)", opacity: 0.3 }}
-              />
-              EV plugged in
-            </span>
+            {ownsEv && (
+              <>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-0.5 w-4" style={{ backgroundColor: "var(--chart-series-2)" }} />
+                  EV Battery
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span
+                    className="inline-block h-3 w-4 rounded-sm"
+                    style={{ backgroundColor: "var(--chart-muted)", opacity: 0.3 }}
+                  />
+                  EV plugged in
+                </span>
+              </>
+            )}
           </div>
         </>
       )}

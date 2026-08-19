@@ -34,6 +34,7 @@ import { useMemo, useState } from "react";
 import { Sun, Home as HomeIcon, BatteryCharging, Car, Zap, Table2, Workflow } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSimulationResult } from "@/hooks/useSimulationResult";
+import { useSimulationStore } from "@/store/useSimulationStore";
 import { TimeSlider } from "./TimeSlider";
 import { formatHour } from "@/lib/format";
 import type { HourlyState } from "@/lib/types";
@@ -193,6 +194,7 @@ function buildPath(from: NodeId, to: NodeId): { d: string; labelX: number; label
 
 export function EnergyFlowDiagram() {
   const { configured } = useSimulationResult();
+  const ownsEv = useSimulationStore((s) => s.inputs.ev.ownsEv);
   // Noon is a fixed, deterministic default (not "the current real-world
   // hour") so server-rendered and client-rendered markup always match on
   // first load — using the visitor's actual clock time here would risk a
@@ -202,10 +204,28 @@ export function EnergyFlowDiagram() {
 
   const state = configured.hourlyStates[selectedHour];
 
+  // With no EV, its flows would compute to 0kW and get filtered out of
+  // activeFlows below anyway (see getEffectiveEVConfig in
+  // lib/v2g-simulation.ts) — but the EV NODE BOX is drawn by iterating every
+  // key in NODES regardless of whether any flow touches it, so relying on
+  // zero-kW filtering alone would still leave an empty "EV" box sitting on
+  // the diagram. Excluding it here, at the node/flow-definition level, is
+  // what actually removes it.
+  const visibleNodeIds = useMemo(
+    () => (Object.keys(NODES) as NodeId[]).filter((id) => ownsEv || id !== "ev"),
+    [ownsEv]
+  );
+  const visibleFlowDefinitions = useMemo(
+    () => (ownsEv ? FLOW_DEFINITIONS : FLOW_DEFINITIONS.filter((def) => def.from !== "ev" && def.to !== "ev")),
+    [ownsEv]
+  );
+
   const activeFlows = useMemo(
     () =>
-      FLOW_DEFINITIONS.map((def) => ({ def, kw: def.getKw(state) })).filter(({ kw }) => kw > 0.01),
-    [state]
+      visibleFlowDefinitions
+        .map((def) => ({ def, kw: def.getKw(state) }))
+        .filter(({ kw }) => kw > 0.01),
+    [state, visibleFlowDefinitions]
   );
 
   return (
@@ -241,7 +261,7 @@ export function EnergyFlowDiagram() {
       </div>
 
       {showTable ? (
-        <FlowTable hourlyStates={configured.hourlyStates} />
+        <FlowTable hourlyStates={configured.hourlyStates} flowDefinitions={visibleFlowDefinitions} />
       ) : (
         <>
           <svg viewBox="0 0 480 400" className="w-full" role="img" aria-label={`Energy flows at ${formatHour(selectedHour)}`}>
@@ -303,7 +323,7 @@ export function EnergyFlowDiagram() {
               );
             })}
 
-            {(Object.keys(NODES) as NodeId[]).map((id) => {
+            {visibleNodeIds.map((id) => {
               const node = NODES[id];
               const Icon = node.icon;
               return (
@@ -351,10 +371,12 @@ export function EnergyFlowDiagram() {
               <span className="inline-block h-0.5 w-4" style={{ backgroundColor: "var(--chart-series-1)" }} />
               Battery
             </span>
-            <span className="flex items-center gap-1.5">
-              <span className="inline-block h-0.5 w-4" style={{ backgroundColor: "var(--chart-series-2)" }} />
-              EV
-            </span>
+            {ownsEv && (
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-0.5 w-4" style={{ backgroundColor: "var(--chart-series-2)" }} />
+                EV
+              </span>
+            )}
             <span className="flex items-center gap-1.5">
               <span className="inline-block h-0.5 w-4" style={{ backgroundColor: "var(--chart-muted)" }} />
               Grid (fallback source, not a sized asset)
@@ -368,15 +390,24 @@ export function EnergyFlowDiagram() {
 
 /** The diagram's accessibility twin: every flow, for every hour, as a plain
  * table — not just the currently-scrubbed hour, so a reader using this view
- * has access to everything the diagram could show across the full day. */
-function FlowTable({ hourlyStates }: { hourlyStates: HourlyState[] }) {
+ * has access to everything the diagram could show across the full day.
+ * `flowDefinitions` is passed in (rather than reading the module-level
+ * FLOW_DEFINITIONS directly) so this table only lists EV columns when the
+ * household actually owns one, matching the diagram above it. */
+function FlowTable({
+  hourlyStates,
+  flowDefinitions,
+}: {
+  hourlyStates: HourlyState[];
+  flowDefinitions: FlowDefinition[];
+}) {
   return (
     <div className="max-h-80 overflow-y-auto rounded-md border" style={{ borderColor: "var(--chart-border)" }}>
       <table className="w-full text-left text-xs">
         <thead className="sticky top-0" style={{ backgroundColor: "var(--chart-surface)" }}>
           <tr>
             <th className="px-2 py-1 font-medium">Hour</th>
-            {FLOW_DEFINITIONS.map((def) => (
+            {flowDefinitions.map((def) => (
               <th key={def.id} className="px-2 py-1 font-medium tabular-nums">
                 {def.label}
               </th>
@@ -387,7 +418,7 @@ function FlowTable({ hourlyStates }: { hourlyStates: HourlyState[] }) {
           {hourlyStates.map((state) => (
             <tr key={state.hour} className="border-t" style={{ borderColor: "var(--chart-grid)" }}>
               <td className="px-2 py-1 tabular-nums">{formatHour(state.hour)}</td>
-              {FLOW_DEFINITIONS.map((def) => {
+              {flowDefinitions.map((def) => {
                 const kw = def.getKw(state);
                 return (
                   <td key={def.id} className="px-2 py-1 tabular-nums">

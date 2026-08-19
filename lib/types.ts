@@ -104,6 +104,11 @@ export interface BatteryConfig {
 
 /** Settings for the EV and its V2G (Vehicle-to-Grid) bidirectional charger. */
 export interface EVConfig {
+  ownsEv: boolean; // does this household have an EV at all? false excludes the
+  // EV entirely from every calculation (dispatch, capex, outage resilience)
+  // and every chart/diagram/table — every other field below is left exactly
+  // as configured so re-enabling restores it unchanged. See
+  // getEffectiveEVConfig() in lib/v2g-simulation.ts for how this is applied.
   capacityKwh: number; // 40-100, default 60 — total EV battery size
   chargerPowerKw: number; // 3.3-11, default 7 — max rate the charger can push power
   // in either direction (charging the EV, or the EV feeding the house)
@@ -194,7 +199,7 @@ export interface OutageResult {
   // Can be fractional (e.g. 14.5 means the batteries ran out partway through the
   // 15th hour). See README.md "Locked decisions" #6.
   exhausted: boolean; // true = the batteries actually ran out before the 168-hour
-  // simulation cap; false = they lasted the full cap (displayed as "168+")
+  // simulation cap; false = they lasted the full cap (displayed as "Infinite")
   includeEV: boolean; // whether this particular run counted the EV's contribution
 }
 
@@ -223,7 +228,7 @@ export interface SensitivityMatrixCell {
   survivalHoursCombined: number; // survival hours counting both batteries together
   survivalHoursCombinedExhausted: boolean; // mirrors OutageResult.exhausted — false
   // means the batteries lasted the full simulated cap without running out, so the UI
-  // should display this as "168+h" rather than a specific number (see formatSurvivalHours
+  // should display this as "Infinite" rather than a specific number (see formatSurvivalHours
   // in lib/format.ts). Without this flag, a matrix cell showing "168" looks like an exact
   // measurement rather than "hit the simulation's safety cap."
 }

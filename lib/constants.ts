@@ -16,10 +16,10 @@ import type { SimulationInputs } from "./types";
 export const STATIONARY_BATTERY_MAX_RATE_KW = 10;
 
 /** Safety cap on how many hours the outage simulator will simulate forward before
- * giving up and reporting "168+" instead of a specific number. 168 hours = 1 week.
- * Without a cap, a heavily-oversized system with very low critical load could
- * make the simulation loop run for an unreasonably (or even infinitely) long
- * simulated time. See README.md "Locked decisions" #6. */
+ * giving up and reporting "Infinite" instead of a specific number. 168 hours = 1
+ * week. Without a cap, a heavily-oversized system with very low critical load
+ * could make the simulation loop run for an unreasonably (or even infinitely)
+ * long simulated time. See README.md "Locked decisions" #6. */
 export const OUTAGE_SIMULATION_CAP_HOURS = 168;
 
 /** The row values (Reserve SoC %) used to build the Sensitivity Matrix. Chosen as
@@ -53,6 +53,8 @@ export const DEFAULT_SIMULATION_INPUTS: SimulationInputs = {
     startingSocPct: 20, // defaults to matching reserveSocPct — see README #10
   },
   ev: {
+    ownsEv: true, // default to "yes, this household has an EV" — matches the
+    // app's original behavior before opting out was possible
     capacityKwh: 60, // matches the feature spec's stated default
     chargerPowerKw: 7, // matches the feature spec's stated default
     dischargeFloorPct: 30, // keeps a meaningful driving buffer by default
