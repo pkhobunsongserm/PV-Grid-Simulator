@@ -32,7 +32,10 @@ export function BlackoutStartControl() {
         helpText={
           <>
             Only critical loads are served from this hour onward. No grid, no solar recharging —
-            this is a deliberately worst-case estimate. <InfoLink id="outage" />
+            this is a deliberately worst-case estimate. <InfoLink id="outage" /> Defaults to
+            6:00 AM, before that day&apos;s solar has recharged the battery, so the Reserve SoC
+            slider&apos;s effect on Survival Hours is actually visible.{" "}
+            <InfoLink id="reserve-timing" label="see why" />
           </>
         }
       />

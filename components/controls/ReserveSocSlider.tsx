@@ -41,6 +41,8 @@ export function ReserveSocSlider() {
             During a normal day, the battery won&apos;t discharge below this line. During a
             simulated blackout, it drains all the way to 0% — the reserve IS the backup.{" "}
             <InfoLink id="reserve-floor" />
+            {" "}Whether this actually changes Survival Hours also depends on when the blackout
+            starts — <InfoLink id="reserve-timing" label="see why" />.
           </>
         }
       />

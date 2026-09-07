@@ -150,11 +150,13 @@ export function SensitivityMatrixTable() {
         Rows: Stationary Reserve SoC. Columns: Stationary Battery Capacity.
         {activeMetric === "survivalCombined" &&
           " EV capacity stays fixed at your current setting and is added on top of the stationary battery being swept below — for a household with an EV, that fixed contribution can dwarf the stationary battery's own effect, so it's easy for these numbers to look flat across a whole row; switch to \"Battery Only\" to see the stationary battery's effect in isolation."}
+        {activeMetric !== "payback" &&
+          " Reserve SoC (rows) only visibly moves these numbers when the blackout starts before that day's solar has recharged the battery — change the Outage Simulator's Blackout Start Time to see rows flatten or diverge."}
         {" "}Darker cells are a <em>higher</em>{" "}
         {activeMetric === "payback" ? "payback (worse)" : "survival time (better)"} — color always
         tracks magnitude, not &ldquo;good vs. bad,&rdquo; since payback and survival point in
         opposite directions. The outlined cell is closest to your current sliders.{" "}
-        <InfoLink id="matrix" />
+        <InfoLink id="matrix" /> <InfoLink id="reserve-timing" label="Reserve SoC vs. timing" />
       </p>
 
       <div className="overflow-x-auto">

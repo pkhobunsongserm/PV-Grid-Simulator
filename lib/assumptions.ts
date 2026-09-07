@@ -51,6 +51,12 @@ export const ASSUMPTIONS: Assumption[] = [
       "Stationary Reserve SoC is a floor only during normal, day-to-day operation — during a simulated blackout the home battery is allowed to run all the way to 0%, since that reserve is exactly what backup power draws on. The EV's Discharge Floor holds firm even during a blackout, so there's still enough charge left to drive away.",
   },
   {
+    id: "reserve-timing",
+    title: "Reserve SoC's effect on Survival Hours depends on the blackout's timing",
+    detail:
+      "Reserve SoC only ever limits discharging, never charging — so if a blackout starts late in the day, that day's solar surplus may have already refilled the battery to nearly the same level no matter what the reserve was set to, making Reserve SoC barely move Survival Hours. The default Blackout Start Time (6:00 AM) is deliberately set before that day's solar has run, so a higher reserve visibly buys more backup time out of the box — move Blackout Start Time later and the effect shrinks.",
+  },
+  {
     id: "outage",
     title: "The outage simulator is worst-case, on purpose",
     detail:

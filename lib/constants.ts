@@ -75,5 +75,17 @@ export const DEFAULT_SIMULATION_INPUTS: SimulationInputs = {
     // default, only switch to the flat formula once the user touches this slider
   },
   capex: { ...DEFAULT_CAPEX },
-  blackoutStartHour: 18, // 6:00 PM — start of Evening Peak, see README #6
+  // 6:00 AM — deliberately BEFORE the day's solar has recharged the
+  // stationary battery. Reserve SoC is a discharge floor only (decision #4);
+  // it never limits how high the battery can charge, so if the blackout
+  // defaulted to evening, ample midday solar surplus would already have
+  // refilled the battery to roughly the same level regardless of its reserve
+  // setting, making Reserve SoC's real effect on Survival Hours invisible on
+  // the Sensitivity Matrix out of the box. Starting from a pre-solar hour
+  // means the reserve floor is exactly what's sitting in the battery when
+  // the blackout starts, so a higher Reserve SoC visibly buys more backup
+  // time — see design-document.md's Phase 9 changelog entry for the full
+  // reasoning (this deliberately trades away decision #6's original "highest
+  // demand hour" rationale for this one).
+  blackoutStartHour: 6,
 };

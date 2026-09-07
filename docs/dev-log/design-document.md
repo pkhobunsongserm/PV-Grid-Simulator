@@ -156,9 +156,9 @@ equivalent.
   and return legs are not modeled separately.
 
 ### 6. Outage / resilience simulator
-From a configurable blackout-start hour (default **18:00**, the start of Evening Peak —
-chosen because it's also when demand is highest, making it the more meaningful stress
-test vs. midnight):
+From a configurable blackout-start hour (default **06:00**, deliberately BEFORE the
+day's solar has had a chance to recharge the stationary battery — see the Phase 9
+changelog entry for why this superseded the original 18:00/"highest demand" default):
 - Only **critical** load is served, not full demand.
 - No grid import/export is available at all during the simulated outage.
 - No solar recharging is assumed during the outage (a deliberately conservative
@@ -260,6 +260,35 @@ Tracks decisions, additions, and deviations from the original feature spec made
 was decided during planning, before any code existed. Entries are grouped by phase,
 newest first. For the full story behind any entry — what led to it, what was tried,
 what broke — see the matching file in `docs/dev-log/`.
+
+### Phase 9 — In-app assumption disclosure + default blackout hour
+
+- **Changed `DEFAULT_SIMULATION_INPUTS.blackoutStartHour` from 18:00 to
+  06:00**, revisiting decision #6's original default. Real user feedback on
+  the deployed app (a screenshot of the Sensitivity Matrix's "Battery Only"
+  view, every Reserve SoC row visually identical) surfaced a compounding
+  effect the Phase 6 changelog entry below didn't fully capture: Reserve SoC
+  is a discharge floor only (decision #4), so with the *evening* default,
+  ample midday solar surplus refilled the battery to nearly the same level
+  every day regardless of its reserve setting, on top of decision #4's own
+  "outage ignores reserve entirely" effect — two separate reasons compounding
+  into a flat-looking matrix, only one of which was documented. Moving the
+  default to 06:00 (before that day's solar has run) means the reserve floor
+  IS what's sitting in the battery at blackout time, so the matrix now shows
+  Reserve SoC's real, intuitive effect out of the box. **Decision #4 itself
+  is unchanged** — the outage simulator still never reads `reserveSocPct`
+  and still drains the stationary battery to 0% during a blackout; only the
+  *default hour the app starts you at* moved, which is why the existing
+  Phase 8 regression tests (which set their own explicit `blackoutStartHour`
+  rather than relying on the default) needed no changes.
+- **Added `lib/assumptions.ts`, `InfoLink`, and `AssumptionsPanel`** — every
+  simplifying assumption listed under "Locked decisions" above is now
+  surfaced in the running app itself (a "Why?" link next to the relevant
+  slider/result, deep-linking into one "Assumptions & Methodology" panel at
+  the bottom of the page), not just in this file. Several rendered UI strings
+  had been pointing users at "see README.md" — a file the deployed app never
+  ships — which is very likely what the user feedback above was reacting to
+  as well.
 
 ### Phase 8 — Testing Strategy
 
