@@ -13,6 +13,7 @@
 import { Car, TriangleAlert } from "lucide-react";
 import { useSimulationStore } from "@/store/useSimulationStore";
 import { ControlSection } from "@/components/layout/ControlSection";
+import { InfoLink } from "@/components/common/InfoLink";
 import { SliderField } from "./SliderField";
 import { HourSelect } from "./HourSelect";
 import { ToggleField } from "./ToggleField";
@@ -26,7 +27,12 @@ export function EVControls() {
     <ControlSection
       title="EV & V2G Configuration"
       icon={Car}
-      description="Your electric vehicle and its bidirectional charger."
+      description={
+        <>
+          Your electric vehicle and its bidirectional charger — also solar-only, never charges
+          from the grid. <InfoLink id="no-grid-charging" />
+        </>
+      }
     >
       <ToggleField
         label="This household owns an EV"
@@ -69,7 +75,12 @@ export function EVControls() {
             max={100}
             onChange={(startingSocPct) => setEV({ startingSocPct })}
             formatValue={formatPercent}
-            helpText="How full the EV is at the start of the simulated day."
+            helpText={
+              <>
+                How full the EV is at the start of the simulated day — defaults to 80%
+                (&ldquo;charged overnight&rdquo;). <InfoLink id="starting-soc" />
+              </>
+            }
           />
           <HourSelect
             label="Departure Time"

@@ -12,6 +12,7 @@
 import { BatteryCharging } from "lucide-react";
 import { useSimulationStore } from "@/store/useSimulationStore";
 import { ControlSection } from "@/components/layout/ControlSection";
+import { InfoLink } from "@/components/common/InfoLink";
 import { SliderField } from "./SliderField";
 import { formatPercent } from "@/lib/format";
 
@@ -23,7 +24,12 @@ export function BatteryControls() {
     <ControlSection
       title="Stationary Battery"
       icon={BatteryCharging}
-      description="The fixed home battery. Max charge/discharge rate is fixed at 10kW, per spec."
+      description={
+        <>
+          The fixed home battery. Max charge/discharge rate is fixed at 10kW, per spec — and it
+          only ever charges from solar surplus, never from the grid. <InfoLink id="no-grid-charging" />
+        </>
+      }
     >
       <SliderField
         label="Capacity"

@@ -231,6 +231,14 @@ export interface SensitivityMatrixCell {
   // should display this as "Infinite" rather than a specific number (see formatSurvivalHours
   // in lib/format.ts). Without this flag, a matrix cell showing "168" looks like an exact
   // measurement rather than "hit the simulation's safety cap."
+  survivalHoursStationaryOnly: number; // same idea, but counting ONLY the stationary
+  // battery — this is the number that actually varies with the column being swept.
+  // The EV's own (fixed, large) capacity dominates survivalHoursCombined for any
+  // household that owns one, which hides the stationary battery's effect almost
+  // entirely (it saturates at OUTAGE_SIMULATION_CAP_HOURS across most/all of the
+  // grid) — see docs/dev-log for the bug this field was added to fix.
+  survivalHoursStationaryOnlyExhausted: boolean; // mirrors OutageResult.exhausted for
+  // survivalHoursStationaryOnly, same "Infinite" display rule as above.
 }
 
 /** A named, ready-to-apply bundle of input values (see lib/presets.ts). Using

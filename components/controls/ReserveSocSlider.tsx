@@ -15,6 +15,7 @@
 import { ShieldCheck } from "lucide-react";
 import { useSimulationStore } from "@/store/useSimulationStore";
 import { ControlSection } from "@/components/layout/ControlSection";
+import { InfoLink } from "@/components/common/InfoLink";
 import { SliderField } from "./SliderField";
 import { formatPercent } from "@/lib/format";
 
@@ -35,7 +36,13 @@ export function ReserveSocSlider() {
         max={80}
         onChange={(newReserveSocPct) => setBattery({ reserveSocPct: newReserveSocPct })}
         formatValue={formatPercent}
-        helpText="During a normal day, the battery won't discharge below this line. During a simulated blackout, it drains all the way to 0% — the reserve IS the backup."
+        helpText={
+          <>
+            During a normal day, the battery won&apos;t discharge below this line. During a
+            simulated blackout, it drains all the way to 0% — the reserve IS the backup.{" "}
+            <InfoLink id="reserve-floor" />
+          </>
+        }
       />
     </ControlSection>
   );

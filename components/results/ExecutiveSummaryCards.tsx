@@ -12,6 +12,7 @@ import { TrendingUp, PiggyBank, ShieldCheck } from "lucide-react";
 import { useSimulationResult } from "@/hooks/useSimulationResult";
 import { useSimulationStore } from "@/store/useSimulationStore";
 import { StatCard } from "./StatCard";
+import { InfoLink } from "@/components/common/InfoLink";
 import { formatAud, formatPaybackYears, formatSurvivalHours, formatHoursDelta } from "@/lib/format";
 
 export function ExecutiveSummaryCards() {
@@ -32,14 +33,24 @@ export function ExecutiveSummaryCards() {
         label="Financial payback"
         icon={<TrendingUp className="h-4 w-4" aria-hidden="true" />}
         value={formatPaybackYears(financials.paybackYears)}
-        caption={`on ${formatAud(financials.totalCapex)} invested`}
+        caption={
+          <>
+            on {formatAud(financials.totalCapex)} invested, using editable cost defaults{" "}
+            <InfoLink id="financials" />
+          </>
+        }
       />
 
       <StatCard
         label="Annual tariff savings"
         icon={<PiggyBank className="h-4 w-4" aria-hidden="true" />}
         value={formatAud(financials.annualSavings)}
-        caption={`${formatAud(financials.dailySavings)}/day, extrapolated from one representative day`}
+        caption={
+          <>
+            {formatAud(financials.dailySavings)}/day, extrapolated from one representative day —
+            no seasonal variation. <InfoLink id="financials" />
+          </>
+        }
       />
 
       <StatCard
@@ -59,13 +70,16 @@ export function ExecutiveSummaryCards() {
               : { text: "no added benefit from the EV in this scenario", tone: "neutral" }
         }
         caption={
-          // With no EV, outageCombined already equals outageStationaryOnly —
-          // showing both numbers would just repeat the headline value, so the
-          // "stationary alone" comparison line only makes sense when there's
-          // an EV to compare against.
-          ownsEv
-            ? `stationary alone: ${formatSurvivalHours(outageStationaryOnly.survivalHours, outageStationaryOnly.exhausted)}`
-            : undefined
+          <>
+            {/* With no EV, outageCombined already equals outageStationaryOnly
+             * — showing both numbers would just repeat the headline value, so
+             * the "stationary alone" comparison line only makes sense when
+             * there's an EV to compare against. The worst-case-assumptions
+             * link always shows, regardless of EV ownership. */}
+            {ownsEv &&
+              `stationary alone: ${formatSurvivalHours(outageStationaryOnly.survivalHours, outageStationaryOnly.exhausted)} — `}
+            worst-case estimate <InfoLink id="outage" />
+          </>
         }
       />
     </div>

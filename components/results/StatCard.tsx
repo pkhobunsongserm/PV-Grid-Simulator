@@ -23,8 +23,10 @@ interface StatCardProps {
    * change is actually good news — see ExecutiveSummaryCards.tsx. */
   delta?: { text: string; tone: "good" | "neutral" };
   /** Optional small gray line below everything else, for extra context that
-   * doesn't need visual emphasis (e.g. "on $26,920 invested"). */
-  caption?: string;
+   * doesn't need visual emphasis (e.g. "on $26,920 invested"). ReactNode (not
+   * just string) so it can end in an InfoLink pointing at the fuller
+   * write-up in AssumptionsPanel. */
+  caption?: ReactNode;
 }
 
 export function StatCard({ label, value, icon, delta, caption }: StatCardProps) {

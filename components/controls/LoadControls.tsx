@@ -16,6 +16,7 @@
 import { Home } from "lucide-react";
 import { useSimulationStore } from "@/store/useSimulationStore";
 import { ControlSection } from "@/components/layout/ControlSection";
+import { InfoLink } from "@/components/common/InfoLink";
 import { SliderField } from "./SliderField";
 import { DEFAULT_SIMULATION_INPUTS } from "@/lib/constants";
 
@@ -27,7 +28,12 @@ export function LoadControls() {
     <ControlSection
       title="Household Demand"
       icon={Home}
-      description="Scales the reference demand curve proportionally — see README.md."
+      description={
+        <>
+          Scales one reference day&apos;s demand curve proportionally, not a different
+          household&apos;s data. <InfoLink id="scaling" />
+        </>
+      }
     >
       <SliderField
         label="Base Load"

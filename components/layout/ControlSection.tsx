@@ -22,8 +22,9 @@ interface ControlSectionProps {
   title: string;
   icon: LucideIcon;
   /** Short line shown under the title, explaining what this group of settings
-   * controls. */
-  description?: string;
+   * controls. ReactNode (not just string) so it can end in an InfoLink
+   * pointing at the fuller write-up in AssumptionsPanel. */
+  description?: ReactNode;
   children: ReactNode;
   /** If provided, the section becomes collapsible/expandable, starting in this
    * open/closed state. If omitted, the section is always open (not

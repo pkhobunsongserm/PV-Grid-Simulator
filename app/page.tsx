@@ -19,6 +19,7 @@ import { ExecutiveSummaryCards } from "@/components/results/ExecutiveSummaryCard
 import { DualBatteryChart } from "@/components/results/DualBatteryChart";
 import { EnergyFlowDiagram } from "@/components/results/EnergyFlowDiagram";
 import { SensitivityMatrixTable } from "@/components/results/SensitivityMatrixTable";
+import { AssumptionsPanel } from "@/components/results/AssumptionsPanel";
 
 export default function Home() {
   return (
@@ -31,6 +32,7 @@ export default function Home() {
           <DualBatteryChart />
           <EnergyFlowDiagram />
           <SensitivityMatrixTable />
+          <AssumptionsPanel />
         </main>
       </div>
     </div>

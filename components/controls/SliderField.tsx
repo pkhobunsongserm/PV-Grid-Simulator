@@ -15,6 +15,8 @@
 // -----------------------------------------------------------------------------
 "use client";
 
+import type { ReactNode } from "react";
+
 interface SliderFieldProps {
   /** The text label shown above the slider, e.g. "Battery Capacity". */
   label: string;
@@ -32,8 +34,9 @@ interface SliderFieldProps {
   formatValue?: (value: number) => string;
   /** Optional small explanatory line shown below the slider, for anything that
    * needs a bit more context than the label alone gives (e.g. clarifying that
-   * Reserve SoC only applies during normal operation, not a blackout). */
-  helpText?: string;
+   * Reserve SoC only applies during normal operation, not a blackout).
+   * ReactNode (not just string) so it can end in an InfoLink. */
+  helpText?: ReactNode;
 }
 
 export function SliderField({

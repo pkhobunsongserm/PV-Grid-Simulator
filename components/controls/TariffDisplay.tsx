@@ -13,6 +13,7 @@
 
 import { Receipt } from "lucide-react";
 import { ControlSection } from "@/components/layout/ControlSection";
+import { InfoLink } from "@/components/common/InfoLink";
 import { tariffSchedule } from "@/lib/reference-data";
 import { formatAud, formatHour } from "@/lib/format";
 import type { TariffHourEntry } from "@/lib/types";
@@ -31,7 +32,11 @@ export function TariffDisplay() {
     <ControlSection
       title="Time-of-Use Tariff"
       icon={Receipt}
-      description="Read-only in this version — see README.md 'Locked decisions' #1."
+      description={
+        <>
+          One real Melbourne tariff schedule, not editable in this version. <InfoLink id="tariff" />
+        </>
+      }
       defaultOpen={false}
     >
       <p className="mb-2 text-xs text-slate-400">

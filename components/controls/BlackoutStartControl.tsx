@@ -12,6 +12,7 @@
 import { ZapOff } from "lucide-react";
 import { useSimulationStore } from "@/store/useSimulationStore";
 import { ControlSection } from "@/components/layout/ControlSection";
+import { InfoLink } from "@/components/common/InfoLink";
 import { HourSelect } from "./HourSelect";
 
 export function BlackoutStartControl() {
@@ -28,7 +29,12 @@ export function BlackoutStartControl() {
         label="Blackout Start Time"
         value={blackoutStartHour}
         onChange={setBlackoutStartHour}
-        helpText="Only critical loads are served from this hour onward. No grid, no solar recharging."
+        helpText={
+          <>
+            Only critical loads are served from this hour onward. No grid, no solar recharging —
+            this is a deliberately worst-case estimate. <InfoLink id="outage" />
+          </>
+        }
       />
     </ControlSection>
   );

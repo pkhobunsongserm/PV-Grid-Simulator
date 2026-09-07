@@ -553,6 +553,20 @@ export function runSensitivityMatrix(
         blackoutHourState.evSocKwh,
         blackoutHourState.evPluggedIn
       );
+      // Also run stationary-battery-alone, same reasoning as
+      // FullSimulationOutput.outageStationaryOnly — the EV's fixed, large
+      // capacity swamps survivalHoursCombined for any household that owns
+      // one, which would otherwise hide the effect of the very column this
+      // matrix is meant to be sweeping.
+      const stationaryOnlyOutage = runOutageSimulation(
+        cellInputs,
+        scaled,
+        cellInputs.blackoutStartHour,
+        false,
+        blackoutHourState.stationarySocKwh,
+        blackoutHourState.evSocKwh,
+        blackoutHourState.evPluggedIn
+      );
 
       return {
         reserveSocPct,
@@ -562,6 +576,8 @@ export function runSensitivityMatrix(
         paybackYears: financials.paybackYears,
         survivalHoursCombined: combinedOutage.survivalHours,
         survivalHoursCombinedExhausted: combinedOutage.exhausted,
+        survivalHoursStationaryOnly: stationaryOnlyOutage.survivalHours,
+        survivalHoursStationaryOnlyExhausted: stationaryOnlyOutage.exhausted,
       };
     })
   );

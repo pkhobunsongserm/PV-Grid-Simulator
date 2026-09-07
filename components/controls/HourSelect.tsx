@@ -10,14 +10,15 @@
 // -----------------------------------------------------------------------------
 "use client";
 
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { formatHour } from "@/lib/format";
 
 interface HourSelectProps {
   label: string;
   value: number; // 0-23
   onChange: (hour: number) => void;
-  helpText?: string;
+  /** ReactNode (not just string) so it can end in an InfoLink. */
+  helpText?: ReactNode;
 }
 
 export function HourSelect({ label, value, onChange, helpText }: HourSelectProps) {

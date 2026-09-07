@@ -12,6 +12,7 @@
 import { Sun } from "lucide-react";
 import { useSimulationStore } from "@/store/useSimulationStore";
 import { ControlSection } from "@/components/layout/ControlSection";
+import { InfoLink } from "@/components/common/InfoLink";
 import { SliderField } from "./SliderField";
 
 export function SolarControls() {
@@ -22,7 +23,12 @@ export function SolarControls() {
     <ControlSection
       title="Solar PV"
       icon={Sun}
-      description="Scales the reference generation curve proportionally, inverter limit included."
+      description={
+        <>
+          Scales one reference system&apos;s generation curve proportionally, inverter limit
+          included. <InfoLink id="scaling" />
+        </>
+      }
     >
       <SliderField
         label="Solar Capacity"

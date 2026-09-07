@@ -14,6 +14,7 @@
 import { DollarSign } from "lucide-react";
 import { useSimulationStore } from "@/store/useSimulationStore";
 import { ControlSection } from "@/components/layout/ControlSection";
+import { InfoLink } from "@/components/common/InfoLink";
 import { SliderField } from "./SliderField";
 import { formatAud } from "@/lib/format";
 
@@ -25,7 +26,12 @@ export function CapexControls() {
     <ControlSection
       title="Advanced: Cost Assumptions"
       icon={DollarSign}
-      description="Not part of the original spec — added so the payback math has real numbers. See README.md #9."
+      description={
+        <>
+          Editable defaults driving the payback math, not a real quote for your equipment.{" "}
+          <InfoLink id="financials" />
+        </>
+      }
       defaultOpen={false}
     >
       <SliderField
