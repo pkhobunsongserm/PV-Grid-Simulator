@@ -234,6 +234,28 @@ not a silent unit bug — don't remove the `dt` multiplier to "simplify" the cod
   — that preset's whole purpose is maximizing blackout backup energy, which the
   app-wide 80% default would otherwise quietly work against.
 
+### 13. V2G vs. normal charger toggle (not in the original spec — added post-launch)
+- `ev.v2gEnabled` (default **true**) gates whether the EV's charger is bidirectional.
+  Charging behavior (Steps 2-3 of decision #3) is **completely unaffected** either
+  way — this only gates *discharge*: Step 6's Evening Peak V2G discharge (decision
+  #3) and the outage simulator's EV contribution (decision #6) both require
+  `v2gEnabled: true`, in addition to their existing gates (period, plugged-in
+  status, floor).
+- Confirmed as a real hardware constraint, not a policy choice: a standard
+  unidirectional charger has no physical path to push power backward, so this
+  applies with NO exceptions — even a simulated blackout doesn't relax it, unlike
+  the EV's Discharge Floor (decision #4), which is a chosen buffer, not a hardware
+  limit.
+- `capex.normalChargerFixedCost` (default **$2,150**, AU 2026 market research:
+  hardware $700-$1,500 + install $1,000-$1,500, total installed range
+  $1,500-$5,000) replaces `v2gChargerFixedCost` ($10,000, unchanged) in
+  `computeFinancials()`'s `totalCapex` whenever `v2gEnabled` is false — same
+  `ownsEv` gate as before (a household with no EV buys neither).
+- The Sensitivity Matrix needed **zero code changes** — `runSensitivityMatrix()`
+  already threads `inputs.ev`/`inputs.capex` through every cell untouched (only
+  `battery.*` is overridden per-cell), so this global toggle propagates
+  automatically, the same way `ownsEv` already does.
+
 ## Code documentation standard
 
 This codebase is meant to be readable by someone who's comfortable with code but new to
@@ -281,6 +303,32 @@ Tracks decisions, additions, and deviations from the original feature spec made
 was decided during planning, before any code existed. Entries are grouped by phase,
 newest first. For the full story behind any entry — what led to it, what was tried,
 what broke — see the matching file in `docs/dev-log/`.
+
+### Phase 11 — V2G vs. normal charger comparison
+
+- **Added `EVConfig.v2gEnabled`** (default **true** — preserves all prior behavior
+  unchanged) — a new toggle ("Enable V2G (bidirectional charging)" in EV & V2G
+  Configuration) that models the real difference between a bidirectional and a
+  standard one-way home charger: identical charging behavior either way, but
+  `false` disables EV discharge entirely — both Step 6's Evening Peak V2G
+  (decision #3) and the outage simulator's EV contribution (decision #6),
+  confirmed as a genuine hardware limitation with no blackout exception, unlike
+  the EV's own Discharge Floor.
+- **Added `CapexConfig.normalChargerFixedCost`** (default **$2,150**, AU 2026
+  market research: $1,500-$5,000 installed range, median ~$2,150 for a complete
+  7kW unidirectional Level 2 charger) — `computeFinancials()` now picks between
+  this and the existing `v2gChargerFixedCost` ($10,000, unchanged) based on
+  `v2gEnabled`, same `ownsEv` gate as before.
+- **No Sensitivity Matrix changes required** — `runSensitivityMatrix()` already
+  spreads `inputs.ev`/`inputs.capex` through every cell unmodified (only
+  `battery.*` is overridden per-cell), so `v2gEnabled` propagates automatically
+  exactly like `ownsEv` already does; no new `SensitivityMatrixCell` fields
+  needed.
+- Updated `lib/assumptions.ts`: new `"ev-v2g-toggle"` entry, plus caveats added
+  to `"reserve-floor"`, `"financials"`, and `"matrix"` noting the Discharge
+  Floor's blackout-immunity, the charger cost choice, and the "+ EV" Survival
+  Hours column can all depend on `v2gEnabled`.
+- See Locked Decision #13 for the full reasoning.
 
 ### Phase 10 — EV grid-charging on arrival
 

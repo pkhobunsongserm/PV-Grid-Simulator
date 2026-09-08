@@ -134,6 +134,12 @@ export function isEvAway(hour: number, departureHour: number, arrivalHour: numbe
  * Without the schedule half of this fix, a household with no EV would still
  * show "EV plugged in" during its old commute hours. This reuses the exact
  * "always away" convention computeBaselineScenario() already relies on.
+ *
+ * v2gEnabled is deliberately NOT touched here, either way — it's a
+ * discharge-behavior gate, not a capacity/schedule concern (a v2gEnabled:
+ * false EV still has a real capacity and a real schedule; it just never
+ * discharges), so it passes through unchanged and is checked directly at each
+ * discharge site instead (runHourlyDispatch's Step 6, runOutageSimulation).
  */
 export function getEffectiveEVConfig(ev: EVConfig): EVConfig {
   return ev.ownsEv ? ev : { ...ev, capacityKwh: 0, departureHour: 0, arrivalHour: 0 };
@@ -163,7 +169,10 @@ export function getEffectiveEVConfig(ev: EVConfig): EVConfig {
  *   5. Unmet demand → discharge the stationary battery (any time of day, as
  *      long as it's above its Reserve floor).
  *   6. Remaining unmet demand, ONLY during Evening Peak hours → discharge the
- *      EV into the house ("V2G", if it's home and above its floor).
+ *      EV into the house ("V2G", if it's home and above its floor) — AND only
+ *      if the household's charger is bidirectional (ev.v2gEnabled). A
+ *      unidirectional ("normal") charger skips this step entirely, every
+ *      hour, charging behavior (steps 2-3) unaffected either way.
  *   7. Whatever's still unmet → buy from the grid ("import").
  */
 export function runHourlyDispatch(
@@ -270,9 +279,14 @@ export function runHourlyDispatch(
     stationarySocKwh -= stationaryDischargeKw * HOURS_PER_STEP;
     unmetDemandKw -= stationaryDischargeKw;
 
-    // --- Step 6: EV V2G covers remaining unmet demand, Evening Peak only ---
+    // --- Step 6: EV V2G covers remaining unmet demand, Evening Peak only —
+    // and only if this EV's charger is bidirectional at all. A unidirectional
+    // ("normal") charger has no hardware to push power backward under any
+    // circumstance, so v2gEnabled: false gates this exactly like
+    // pluggedIn/period do — this is the ONLY place normal-day V2G discharge
+    // happens (see runOutageSimulation for the separate blackout-time gate).
     let evDischargeKw = 0;
-    if (pluggedIn && tariffEntry.period === "Evening Peak") {
+    if (ev.v2gEnabled && pluggedIn && tariffEntry.period === "Evening Peak") {
       const evDischargeRoomKw = Math.max(0, evSocKwh - evFloorKwh);
       evDischargeKw = Math.min(unmetDemandKw, ev.chargerPowerKw, evDischargeRoomKw);
       evSocKwh -= evDischargeKw * HOURS_PER_STEP;
@@ -376,10 +390,17 @@ export function computeFinancials(
   const totalCapex =
     inputs.battery.capacityKwh * inputs.capex.batteryCostPerKwh +
     inputs.solar.capacityKw * inputs.capex.solarCostPerKw +
-    // A household with no EV isn't buying a V2G charger — this is a flat
-    // cost, not driven by EV capacity, so getEffectiveEVConfig()'s zeroing
-    // trick doesn't reach it; it needs its own explicit ownsEv check.
-    (inputs.ev.ownsEv ? inputs.capex.v2gChargerFixedCost : 0);
+    // A household with no EV isn't buying ANY charger — this is a flat cost,
+    // not driven by EV capacity, so getEffectiveEVConfig()'s zeroing trick
+    // doesn't reach it; it needs its own explicit ownsEv check. Which flat fee
+    // applies then depends on v2gEnabled: a bidirectional (V2G) charger costs
+    // more than a standard unidirectional one, since it needs extra inverter
+    // hardware and certification the one-way version doesn't.
+    (inputs.ev.ownsEv
+      ? inputs.ev.v2gEnabled
+        ? inputs.capex.v2gChargerFixedCost
+        : inputs.capex.normalChargerFixedCost
+      : 0);
 
   // If the configuration doesn't actually save any money (or costs more), a
   // "payback period" is meaningless — report null ("N/A") instead of a negative
@@ -414,6 +435,10 @@ export function computeFinancials(
  *     blackout started (its plugged/away status is frozen for the whole
  *     outage), and it still won't discharge below its own floor, even in a
  *     blackout — that floor protects the ability to actually drive away.
+ *   - The EV also only helps if its charger is bidirectional (v2gEnabled) —
+ *     unlike the discharge floor above (a chosen buffer), this is a hardware
+ *     limitation with NO blackout exception: a unidirectional charger has no
+ *     physical path to push power backward, plugged in or not.
  *   - Capped at OUTAGE_SIMULATION_CAP_HOURS so a very well-provisioned system
  *     doesn't cause the loop to run indefinitely.
  */
@@ -434,8 +459,15 @@ export function runOutageSimulation(
   // normalized config too keeps this function correct on its own.
   const ev = getEffectiveEVConfig(inputs.ev);
   const evFloorKwh = (ev.dischargeFloorPct / 100) * ev.capacityKwh;
+  // A unidirectional charger's EV contributes ZERO outage backup, no matter
+  // how charged it is or whether it's plugged in — this is a hardware
+  // limitation (no reverse power path), not a policy choice that could be
+  // relaxed just because it's an emergency, so v2gEnabled gates this exactly
+  // like includeEV/evPluggedInAtBlackout do.
   let evEnergyKwh =
-    includeEV && evPluggedInAtBlackout ? Math.max(0, evSocAtBlackoutKwh - evFloorKwh) : 0;
+    includeEV && ev.v2gEnabled && evPluggedInAtBlackout
+      ? Math.max(0, evSocAtBlackoutKwh - evFloorKwh)
+      : 0;
 
   let hoursSurvived = 0;
 

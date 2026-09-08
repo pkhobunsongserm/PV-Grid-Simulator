@@ -109,6 +109,16 @@ export interface EVConfig {
   // and every chart/diagram/table — every other field below is left exactly
   // as configured so re-enabling restores it unchanged. See
   // getEffectiveEVConfig() in lib/v2g-simulation.ts for how this is applied.
+  v2gEnabled: boolean; // true (default) = the charger is bidirectional
+  // ("V2G") — the EV can discharge back into the house, both during Evening
+  // Peak in normal daily operation (runHourlyDispatch's Step 6) AND during a
+  // simulated blackout (runOutageSimulation). false = a standard one-way
+  // charger: the EV still charges exactly the same way (solar then grid,
+  // same Max Charge Cap) but NEVER discharges, under any circumstance —
+  // this models a real hardware limitation (no reverse power path), not a
+  // policy choice, so there's deliberately no blackout exception the way
+  // there is for dischargeFloorPct below. Also selects which flat charger
+  // cost applies in computeFinancials() — see CapexConfig.normalChargerFixedCost.
   capacityKwh: number; // 40-100, default 60 — total EV battery size
   chargerPowerKw: number; // 3.3-11, default 7 — max rate the charger can push power
   // in either direction (charging the EV, or the EV feeding the house)
@@ -153,7 +163,14 @@ export interface LoadConfig {
 export interface CapexConfig {
   batteryCostPerKwh: number; // AUD per kWh of stationary battery capacity
   solarCostPerKw: number; // AUD per kW of solar capacity
-  v2gChargerFixedCost: number; // AUD, a FLAT cost (not per-kW) for the V2G charger
+  v2gChargerFixedCost: number; // AUD, a FLAT cost (not per-kW) for a
+  // bidirectional (V2G-capable) charger — used when EVConfig.v2gEnabled is true
+  normalChargerFixedCost: number; // AUD, a FLAT cost for a standard
+  // unidirectional (charge-only) home charger — used instead of
+  // v2gChargerFixedCost when EVConfig.v2gEnabled is false. Cheaper because it
+  // needs no bidirectional inverter or extra certification — AU 2026 market
+  // research puts a complete installed 7kW Level 2 unidirectional charger at
+  // $1,500-$5,000 (median ~$2,150). See design-document.md Locked Decision #13.
 }
 
 /** Every user-adjustable input to the simulation, bundled together. This is what

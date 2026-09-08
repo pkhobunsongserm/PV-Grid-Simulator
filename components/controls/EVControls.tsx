@@ -1,12 +1,13 @@
 // -----------------------------------------------------------------------------
 // components/controls/EVControls.tsx
 //
-// Every slider/dropdown related to the EV and its bidirectional (V2G) charger:
-// size, charger speed, discharge floor, starting charge, commute schedule, and
-// daily commute energy use. See README.md "Locked decisions" #4 for why the
-// EV Discharge Floor behaves differently from the Stationary Reserve SoC
-// slider (in ReserveSocSlider.tsx) even though they look like similar kinds of
-// controls.
+// Every slider/dropdown related to the EV and its charger: whether it's
+// bidirectional (V2G) at all, size, charger speed, discharge floor, starting
+// charge, commute schedule, and daily commute energy use. See README.md
+// "Locked decisions" #4 for why the EV Discharge Floor behaves differently
+// from the Stationary Reserve SoC slider (in ReserveSocSlider.tsx) even
+// though they look like similar kinds of controls, and #13 for the V2G
+// on/off toggle.
 // -----------------------------------------------------------------------------
 "use client";
 
@@ -29,8 +30,8 @@ export function EVControls() {
       icon={Car}
       description={
         <>
-          Your electric vehicle and its bidirectional charger — charges from solar first, then
-          the grid (by default, waiting out the priciest hours first).{" "}
+          Your electric vehicle and its charger — charges from solar first, then the grid (by
+          default, waiting out the priciest hours first).{" "}
           <InfoLink id="no-grid-charging" />
         </>
       }
@@ -43,6 +44,21 @@ export function EVControls() {
       />
       {ev.ownsEv && (
         <>
+          <ToggleField
+            label="Enable V2G (bidirectional charging)"
+            checked={ev.v2gEnabled}
+            onChange={(v2gEnabled) => setEV({ v2gEnabled })}
+            helpText={
+              <>
+                On (default): the charger can push power back into the house during Evening
+                Peak, and help out during a simulated blackout. Off: models a standard, cheaper
+                unidirectional charger — the EV still charges completely normally, but never
+                discharges, under any circumstance (including an outage) — a real one-way
+                charger has no hardware to push power backward.{" "}
+                <InfoLink id="ev-v2g-toggle" />
+              </>
+            }
+          />
           <SliderField
             label="EV Battery Capacity"
             value={ev.capacityKwh}
@@ -52,7 +68,7 @@ export function EVControls() {
             formatValue={(v) => `${v} kWh`}
           />
           <SliderField
-            label="V2G Charger Power"
+            label={ev.v2gEnabled ? "V2G Charger Power" : "Charger Power"}
             value={ev.chargerPowerKw}
             min={3.3}
             max={11}
@@ -60,11 +76,20 @@ export function EVControls() {
             onChange={(chargerPowerKw) => setEV({ chargerPowerKw })}
             formatValue={(v) => `${v.toFixed(1)} kW`}
             helpText={
-              <>
-                Caps how fast the EV can charge OR discharge — including grid-charging, so a
-                bigger number here can mean a bigger grid bill, not just a faster fill-up.{" "}
-                <InfoLink id="no-grid-charging" />
-              </>
+              ev.v2gEnabled ? (
+                <>
+                  Caps how fast the EV can charge OR discharge — including grid-charging, so a
+                  bigger number here can mean a bigger grid bill, not just a faster fill-up.{" "}
+                  <InfoLink id="no-grid-charging" />
+                </>
+              ) : (
+                <>
+                  Caps how fast the EV can charge — including grid-charging, so a bigger number
+                  here can mean a bigger grid bill, not just a faster fill-up. V2G is off, so
+                  this charger only ever charges, never discharges.{" "}
+                  <InfoLink id="no-grid-charging" />
+                </>
+              )
             }
           />
           <ToggleField
@@ -87,7 +112,11 @@ export function EVControls() {
             max={50}
             onChange={(dischargeFloorPct) => setEV({ dischargeFloorPct })}
             formatValue={formatPercent}
-            helpText="The EV never discharges below this line — not even during a simulated blackout — to protect enough charge to actually drive somewhere."
+            helpText={
+              ev.v2gEnabled
+                ? "The EV never discharges below this line — not even during a simulated blackout — to protect enough charge to actually drive somewhere."
+                : "Has no effect right now — V2G is off, so this EV never discharges at all, in normal operation or during a blackout."
+            }
           />
           <SliderField
             label="Starting Charge"

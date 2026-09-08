@@ -60,7 +60,29 @@ export function CapexControls() {
         step={100}
         onChange={(v2gChargerFixedCost) => setCapex({ v2gChargerFixedCost })}
         formatValue={(v) => `${formatAud(v)} flat`}
-        helpText="A FLAT cost, not priced per kW — real V2G chargers are dominated by fixed hardware cost, not power rating."
+        helpText={
+          <>
+            A FLAT cost, not priced per kW — real V2G chargers are dominated by fixed hardware
+            cost, not power rating. Only applies when V2G is enabled — see Normal Charger Cost
+            below for the unidirectional alternative. <InfoLink id="ev-v2g-toggle" />
+          </>
+        }
+      />
+      <SliderField
+        label="Normal Charger Cost"
+        value={capex.normalChargerFixedCost}
+        min={500}
+        max={8000}
+        step={50}
+        onChange={(normalChargerFixedCost) => setCapex({ normalChargerFixedCost })}
+        formatValue={(v) => `${formatAud(v)} flat`}
+        helpText={
+          <>
+            Used instead of V2G Charger Cost above whenever V2G is turned off — cheaper because
+            a standard one-way charger needs no bidirectional inverter hardware or extra
+            certification. <InfoLink id="ev-v2g-toggle" />
+          </>
+        }
       />
     </ControlSection>
   );

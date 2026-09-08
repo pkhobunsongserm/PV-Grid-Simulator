@@ -41,6 +41,9 @@ export const DEFAULT_CAPEX = {
   batteryCostPerKwh: 900,
   solarCostPerKw: 1200,
   v2gChargerFixedCost: 10000,
+  normalChargerFixedCost: 2150, // AU 2026 market median for a complete
+  // installed 7kW unidirectional Level 2 home charger (hardware $700-$1,500 +
+  // install $1,000-$1,500, total range $1,500-$5,000) — see README #13
 };
 
 /** The app's out-of-the-box configuration — what every slider is set to before
@@ -55,6 +58,8 @@ export const DEFAULT_SIMULATION_INPUTS: SimulationInputs = {
   ev: {
     ownsEv: true, // default to "yes, this household has an EV" — matches the
     // app's original behavior before opting out was possible
+    v2gEnabled: true, // default ON — preserves the app's original
+    // all-EVs-are-V2G behavior; see README #13
     capacityKwh: 60, // matches the feature spec's stated default
     chargerPowerKw: 7, // matches the feature spec's stated default
     dischargeFloorPct: 30, // keeps a meaningful driving buffer by default

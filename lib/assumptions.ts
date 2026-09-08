@@ -48,7 +48,7 @@ export const ASSUMPTIONS: Assumption[] = [
     id: "reserve-floor",
     title: "The two batteries protect their floor differently, on purpose",
     detail:
-      "Stationary Reserve SoC is a floor only during normal, day-to-day operation — during a simulated blackout the home battery is allowed to run all the way to 0%, since that reserve is exactly what backup power draws on. The EV's Discharge Floor holds firm even during a blackout, so there's still enough charge left to drive away.",
+      "Stationary Reserve SoC is a floor only during normal, day-to-day operation — during a simulated blackout the home battery is allowed to run all the way to 0%, since that reserve is exactly what backup power draws on. The EV's Discharge Floor holds firm even during a blackout, so there's still enough charge left to drive away — but only when V2G is enabled in the first place; see \"V2G is a toggle\" below.",
   },
   {
     id: "reserve-timing",
@@ -66,13 +66,13 @@ export const ASSUMPTIONS: Assumption[] = [
     id: "matrix",
     title: "The sensitivity matrix only sweeps the stationary battery",
     detail:
-      "Reserve SoC% and Stationary Capacity are what actually vary across the grid; EV capacity stays fixed at whatever you've configured elsewhere, since it's treated as a car already owned, not a sizing decision. Use the \"Battery Only\" / \"+ EV\" toggle above the table — for Survival Hours, with an EV in the household, the \"+ EV\" view can look flat across a whole row simply because the EV's fixed capacity dwarfs the stationary battery's own effect. For Payback Years, \"Battery Only\" and \"+ EV\" are two genuinely different simulated days (the EV's charger cost and its own charging/V2G behavior are only counted in \"+ EV\"), not just two ways of reading the same number.",
+      "Reserve SoC% and Stationary Capacity are what actually vary across the grid; EV capacity stays fixed at whatever you've configured elsewhere, since it's treated as a car already owned, not a sizing decision. Use the \"Battery Only\" / \"+ EV\" toggle above the table — for Survival Hours, with an EV in the household, the \"+ EV\" view can look flat across a whole row simply because the EV's fixed capacity dwarfs the stationary battery's own effect. For Payback Years, \"Battery Only\" and \"+ EV\" are two genuinely different simulated days (the EV's charger cost and its own charging/V2G behavior are only counted in \"+ EV\"), not just two ways of reading the same number. With V2G turned off, the \"+ EV\" Survival Hours figure will also collapse to match \"Battery Only\" even though the household owns an EV — that's correct, not a display bug, since a one-way charger contributes nothing during an outage.",
   },
   {
     id: "financials",
     title: "Costs are editable defaults, and one day stands in for a year",
     detail:
-      "Battery, solar, and V2G-charger costs start from typical Australian-market $/kWh, $/kW, and flat-fee defaults — not a real quote — and can be adjusted under \"Advanced: Cost Assumptions.\" The EV itself is never counted as a cost, only the charger. Annual savings simply multiply one representative day's savings by 365, with no seasonal or weekday/weekend variation modeled.",
+      "Battery, solar, and EV-charger costs (V2G or normal, whichever applies) start from typical Australian-market $/kWh, $/kW, and flat-fee defaults — not a real quote — and can be adjusted under \"Advanced: Cost Assumptions.\" The EV itself is never counted as a cost, only the charger. Annual savings simply multiply one representative day's savings by 365, with no seasonal or weekday/weekend variation modeled.",
   },
   {
     id: "starting-soc",
@@ -85,5 +85,11 @@ export const ASSUMPTIONS: Assumption[] = [
     title: "The EV has its own charge ceiling, separate from its floor",
     detail:
       "Max Charge Cap (default 80%, adjustable 50-100%) mirrors a real EV owner's own charge-limit setting — the EV is never charged, from solar or the grid, above this line, any hour of the day, including after it recharges from a V2G discharge. It only limits future charging: if the EV's Starting Charge is set above the cap, it isn't forced down, it simply won't charge any higher until it naturally drops back under.",
+  },
+  {
+    id: "ev-v2g-toggle",
+    title: "V2G is a toggle, not the only way to model an EV",
+    detail:
+      "By default, the EV's charger is bidirectional (\"V2G\") — it can discharge back into the house during Evening Peak, and help out during a simulated blackout. Turn off \"Enable V2G\" to model a standard, cheaper one-way charger instead: the EV still charges exactly the same way (solar first, then the grid, same Max Charge Cap), but it never discharges, under any circumstance — including a blackout, since a real unidirectional charger has no hardware to push power backward. Turning V2G off also swaps which flat charger cost counts toward payback, from V2G Charger Cost to the cheaper Normal Charger Cost.",
   },
 ];

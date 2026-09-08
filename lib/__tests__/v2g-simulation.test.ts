@@ -168,6 +168,82 @@ describe("v2g-simulation engine", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // Test 5b: turning V2G off must NOT change charging behavior at all — only
+  // discharge. Same inputs run once with the default (V2G on) and once with
+  // v2gEnabled: false; every hour's solar-sourced charge, grid-sourced charge,
+  // and resulting SoC should come out byte-for-byte identical, proving the
+  // toggle only touches Step 6 (discharge), never Steps 2-3 (charging). See
+  // README.md "Locked decisions" #13.
+  // ---------------------------------------------------------------------------
+  test("EV charging is completely unaffected by the V2G toggle", () => {
+    const v2gOnInputs = DEFAULT_SIMULATION_INPUTS;
+    const v2gOffInputs: SimulationInputs = {
+      ...DEFAULT_SIMULATION_INPUTS,
+      ev: { ...DEFAULT_SIMULATION_INPUTS.ev, v2gEnabled: false },
+    };
+
+    const scaledOn = scaleReferenceData(v2gOnInputs, refSolar, refLoad);
+    const resultOn = runHourlyDispatch(v2gOnInputs, scaledOn, tariff);
+    const scaledOff = scaleReferenceData(v2gOffInputs, refSolar, refLoad);
+    const resultOff = runHourlyDispatch(v2gOffInputs, scaledOff, tariff);
+
+    for (let hour = 0; hour < 24; hour++) {
+      expect(resultOff.hourlyStates[hour].evChargeKw).toBeCloseTo(
+        resultOn.hourlyStates[hour].evChargeKw,
+        6
+      );
+      expect(resultOff.hourlyStates[hour].evGridChargeKw).toBeCloseTo(
+        resultOn.hourlyStates[hour].evGridChargeKw,
+        6
+      );
+      expect(resultOff.hourlyStates[hour].evSocKwh).toBeCloseTo(
+        resultOn.hourlyStates[hour].evSocKwh,
+        6
+      );
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Test 5c: with V2G disabled, the EV must never discharge — not even during
+  // Evening Peak, where it normally would. Confirms the premise first (the
+  // SAME inputs, with V2G still on, really do produce V2G discharge during at
+  // least one Evening Peak hour), then flips only v2gEnabled and checks every
+  // hour of the day comes back at zero discharge, with the shortfall showing
+  // up as a grid import instead. See README.md "Locked decisions" #13.
+  // ---------------------------------------------------------------------------
+  test("EV never discharges, all day, when V2G is disabled — even during Evening Peak", () => {
+    const baseInputs: SimulationInputs = {
+      ...DEFAULT_SIMULATION_INPUTS,
+      // No stationary battery, so it can't absorb Evening Peak's unmet demand
+      // first — isolates the EV/V2G behavior being tested.
+      battery: { capacityKwh: 0, reserveSocPct: 0, startingSocPct: 0 },
+    };
+    const scaled = scaleReferenceData(baseInputs, refSolar, refLoad);
+
+    // Premise check: with V2G on (the default), this scenario really does
+    // produce real discharge during at least one Evening Peak hour — otherwise
+    // this test wouldn't actually be exercising anything.
+    const resultV2gOn = runHourlyDispatch(baseInputs, scaled, tariff);
+    const eveningPeakOn = resultV2gOn.hourlyStates.filter((s) => s.period === "Evening Peak");
+    expect(eveningPeakOn.some((s) => s.evDischargeKw > 0)).toBe(true);
+
+    const v2gOffInputs: SimulationInputs = {
+      ...baseInputs,
+      ev: { ...baseInputs.ev, v2gEnabled: false },
+    };
+    const resultV2gOff = runHourlyDispatch(v2gOffInputs, scaled, tariff);
+
+    for (const state of resultV2gOff.hourlyStates) {
+      expect(state.evDischargeKw).toBeCloseTo(0, 6);
+    }
+    // The Evening Peak hours that used to be covered by V2G discharge should
+    // now show up as grid imports instead — no energy just disappears.
+    for (const state of resultV2gOff.hourlyStates.filter((s) => s.period === "Evening Peak")) {
+      expect(state.gridImportKw).toBeCloseTo(Math.max(0, state.demandKw - state.solarKw), 6);
+    }
+  });
+
+  // ---------------------------------------------------------------------------
   // Test 6: the daily commute energy deduction happens exactly once (at the
   // moment the EV departs), not repeatedly, and never pushes the EV's charge
   // below zero. See README.md "Locked decisions" #5.
@@ -453,6 +529,52 @@ describe("v2g-simulation engine", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // Test: the V2G on/off toggle must propagate into the Sensitivity Matrix —
+  // runSensitivityMatrix() never touches ev/capex fields itself, so this
+  // confirms that's a real pass-through, not an accident: the same single
+  // battery cell's paybackYearsCombined should (a) match a direct
+  // runFullSimulation() call with the same v2gEnabled: false inputs (proving
+  // it's a genuine re-simulation, not a stale/cached number) and (b) come out
+  // DIFFERENT from the v2gEnabled: true version of that same cell (proving the
+  // toggle actually changes something at the matrix level, not just at the
+  // top-level Executive Summary). See README.md "Locked decisions" #13.
+  // ---------------------------------------------------------------------------
+  test("sensitivity matrix propagates the V2G toggle into paybackYearsCombined", () => {
+    const reserveSteps = [DEFAULT_SIMULATION_INPUTS.battery.reserveSocPct];
+    const capacitySteps = [DEFAULT_SIMULATION_INPUTS.battery.capacityKwh];
+
+    const v2gOnMatrix = runSensitivityMatrix(
+      DEFAULT_SIMULATION_INPUTS,
+      tariff,
+      refSolar,
+      refLoad,
+      reserveSteps,
+      capacitySteps
+    );
+    const v2gOffInputs: SimulationInputs = {
+      ...DEFAULT_SIMULATION_INPUTS,
+      ev: { ...DEFAULT_SIMULATION_INPUTS.ev, v2gEnabled: false },
+    };
+    const v2gOffMatrix = runSensitivityMatrix(
+      v2gOffInputs,
+      tariff,
+      refSolar,
+      refLoad,
+      reserveSteps,
+      capacitySteps
+    );
+
+    const directV2gOffResult = runFullSimulation(v2gOffInputs, tariff, refSolar, refLoad);
+
+    expect(v2gOffMatrix[0][0].paybackYearsCombined).toBe(
+      directV2gOffResult.financials.paybackYears
+    );
+    expect(v2gOffMatrix[0][0].paybackYearsCombined).not.toBe(
+      v2gOnMatrix[0][0].paybackYearsCombined
+    );
+  });
+
+  // ---------------------------------------------------------------------------
   // Regression test: docs/dev-log/phase-6-sensitivity-matrix.md records, in
   // prose, a real finding from testing the Sensitivity Matrix Table by hand —
   // Reserve SoC has ZERO effect on Survival Hours, because README.md "Locked
@@ -573,6 +695,57 @@ describe("v2g-simulation engine", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // Test 7b: turning V2G off (while still owning an EV) must swap totalCapex
+  // from the V2G charger's fixed cost to the cheaper normal charger's fixed
+  // cost — not just remove the V2G cost, since a household without V2G is
+  // still buying SOME charger. See README.md "Locked decisions" #13.
+  // ---------------------------------------------------------------------------
+  test("disabling V2G switches totalCapex from v2gChargerFixedCost to normalChargerFixedCost", () => {
+    const v2gInputs = DEFAULT_SIMULATION_INPUTS; // v2gEnabled: true by default
+    const normalChargerInputs: SimulationInputs = {
+      ...DEFAULT_SIMULATION_INPUTS,
+      ev: { ...DEFAULT_SIMULATION_INPUTS.ev, v2gEnabled: false },
+    };
+
+    const withV2g = runFullSimulation(v2gInputs, tariff, refSolar, refLoad);
+    const withNormalCharger = runFullSimulation(normalChargerInputs, tariff, refSolar, refLoad);
+
+    expect(withV2g.financials.totalCapex - withNormalCharger.financials.totalCapex).toBeCloseTo(
+      DEFAULT_SIMULATION_INPUTS.capex.v2gChargerFixedCost -
+        DEFAULT_SIMULATION_INPUTS.capex.normalChargerFixedCost,
+      6
+    );
+
+    const expectedNormalChargerCapex =
+      DEFAULT_SIMULATION_INPUTS.battery.capacityKwh * DEFAULT_SIMULATION_INPUTS.capex.batteryCostPerKwh +
+      DEFAULT_SIMULATION_INPUTS.solar.capacityKw * DEFAULT_SIMULATION_INPUTS.capex.solarCostPerKw +
+      DEFAULT_SIMULATION_INPUTS.capex.normalChargerFixedCost;
+    expect(withNormalCharger.financials.totalCapex).toBeCloseTo(expectedNormalChargerCapex, 6);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Test 7c: a household that doesn't own an EV at all buys neither charger —
+  // totalCapex must stay identical regardless of what v2gEnabled happens to be
+  // set to, confirming the ownsEv check still short-circuits ahead of the
+  // v2gEnabled branch (see computeFinancials()'s nested ternary).
+  // ---------------------------------------------------------------------------
+  test("totalCapex stays at 0 charger cost regardless of v2gEnabled when the household doesn't own an EV", () => {
+    const noEvV2gOnInputs: SimulationInputs = {
+      ...DEFAULT_SIMULATION_INPUTS,
+      ev: { ...DEFAULT_SIMULATION_INPUTS.ev, ownsEv: false, v2gEnabled: true },
+    };
+    const noEvV2gOffInputs: SimulationInputs = {
+      ...DEFAULT_SIMULATION_INPUTS,
+      ev: { ...DEFAULT_SIMULATION_INPUTS.ev, ownsEv: false, v2gEnabled: false },
+    };
+
+    const resultV2gOn = runFullSimulation(noEvV2gOnInputs, tariff, refSolar, refLoad);
+    const resultV2gOff = runFullSimulation(noEvV2gOffInputs, tariff, refSolar, refLoad);
+
+    expect(resultV2gOn.financials.totalCapex).toBeCloseTo(resultV2gOff.financials.totalCapex, 6);
+  });
+
+  // ---------------------------------------------------------------------------
   // Test 8: with ev.ownsEv set to false, the EV must be numerically inert for
   // all 24 hours — no charge, no discharge, no state of charge, AND never shown
   // as "plugged in" — even though departureHour/arrivalHour are left at their
@@ -639,5 +812,44 @@ describe("v2g-simulation engine", () => {
       6
     );
     expect(result.outageCombined.exhausted).toBe(result.outageStationaryOnly.exhausted);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Test 11: with V2G disabled, outage survival must collapse to match
+  // "Battery Only" even though the household DOES own an EV that's plugged in
+  // and well above its discharge floor at the moment the blackout starts —
+  // confirms this is a genuine hardware-limitation gate (runOutageSimulation's
+  // v2gEnabled check), not merely a side effect of the EV being away or empty.
+  // Confirms the premise first (the SAME EV, with V2G still on, really does
+  // add real backup hours over "Battery Only"), then flips only v2gEnabled.
+  // Uses the default schedule/blackout hour, where the EV is already known to
+  // be plugged in at blackoutStartHour (see the "EV contributes zero
+  // resilience..." test above for the away case this contrasts with). See
+  // README.md "Locked decisions" #13.
+  // ---------------------------------------------------------------------------
+  test("outage survival collapses to Battery Only when V2G is disabled, even with the EV plugged in and above its floor", () => {
+    const v2gOnResult = runFullSimulation(DEFAULT_SIMULATION_INPUTS, tariff, refSolar, refLoad);
+
+    // Premise check: confirm the EV really is plugged in at the default
+    // blackout hour, and that with V2G on it genuinely adds backup time beyond
+    // the stationary battery alone — otherwise this test wouldn't be
+    // exercising anything.
+    const blackoutHourState = v2gOnResult.configured.hourlyStates[DEFAULT_SIMULATION_INPUTS.blackoutStartHour];
+    expect(blackoutHourState.evPluggedIn).toBe(true);
+    expect(v2gOnResult.outageCombined.survivalHours).toBeGreaterThan(
+      v2gOnResult.outageStationaryOnly.survivalHours
+    );
+
+    const v2gOffInputs: SimulationInputs = {
+      ...DEFAULT_SIMULATION_INPUTS,
+      ev: { ...DEFAULT_SIMULATION_INPUTS.ev, v2gEnabled: false },
+    };
+    const v2gOffResult = runFullSimulation(v2gOffInputs, tariff, refSolar, refLoad);
+
+    expect(v2gOffResult.outageCombined.survivalHours).toBeCloseTo(
+      v2gOffResult.outageStationaryOnly.survivalHours,
+      6
+    );
+    expect(v2gOffResult.outageCombined.exhausted).toBe(v2gOffResult.outageStationaryOnly.exhausted);
   });
 });
