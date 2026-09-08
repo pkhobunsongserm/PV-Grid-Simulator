@@ -220,6 +220,20 @@ code threads an explicit `dt = 1` (hour) multiplier through every energy accumul
 If resolution ever changes (e.g. to 15-minute steps), that should be a one-line change,
 not a silent unit bug — don't remove the `dt` multiplier to "simplify" the code.
 
+### 12. EV Max Charge Cap (not in the original spec — added post-launch)
+- `ev.chargeCapPct` (50-100%, default 80%) mirrors a real EV owner's own charge-limit
+  setting — a ceiling the EV is never charged above, from solar OR the grid, at any hour
+  of the day, including recharging after a V2G discharge. It's a separate slider from
+  Starting Charge (#10) and Discharge Floor (#4/#5) — three independent lines on the
+  same 0-100% scale (floor ≤ starting/current SoC ≤ cap), not one setting reused three
+  ways.
+- The cap only ever limits future charging — it never retroactively pulls the EV's SoC
+  down. If Starting Charge is set above the cap, the EV simply won't charge any higher
+  until normal discharge (commute, V2G) brings it back under the cap on its own.
+- The `off-grid-heavy` preset explicitly overrides this to 100% (see `lib/presets.ts`)
+  — that preset's whole purpose is maximizing blackout backup energy, which the
+  app-wide 80% default would otherwise quietly work against.
+
 ## Code documentation standard
 
 This codebase is meant to be readable by someone who's comfortable with code but new to

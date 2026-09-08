@@ -62,6 +62,8 @@ export const DEFAULT_SIMULATION_INPUTS: SimulationInputs = {
     arrivalHour: 18, // 6:00 PM, matches the feature spec's example
     dailyCommuteKwh: 12, // matches the feature spec's stated default
     startingSocPct: 80, // "charged up overnight" starting assumption — see README #10
+    chargeCapPct: 80, // matches many real EVs' own default charge-limit setting —
+    // see README #12; the EV never charges above this line, all day
     avoidPeakGridCharging: true, // default to waiting out Evening Peak — keeps
     // the out-of-the-box scenario showing a real, positive payback rather than
     // silently eating the day's most expensive rate; see Phase 10 changelog.

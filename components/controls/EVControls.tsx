@@ -103,6 +103,23 @@ export function EVControls() {
               </>
             }
           />
+          <SliderField
+            label="Max Charge Cap"
+            value={ev.chargeCapPct}
+            min={50}
+            max={100}
+            onChange={(chargeCapPct) => setEV({ chargeCapPct })}
+            formatValue={formatPercent}
+            helpText={
+              <>
+                The EV is never charged — from solar or the grid, any hour of the day — above
+                this line, mirroring a real-world EV charge-limit setting for battery longevity.
+                It doesn&apos;t pull the EV down if it&apos;s already above the cap (e.g. from a
+                high Starting Charge value), it only stops further charging until that drops
+                back under. <InfoLink id="ev-charge-cap" />
+              </>
+            }
+          />
           <HourSelect
             label="Departure Time"
             value={ev.departureHour}

@@ -152,13 +152,13 @@ export function getEffectiveEVConfig(ev: EVConfig): EVConfig {
  * "Locked decisions" #3 for the reasoning behind this specific order):
  *   1. Solar → home load, directly.
  *   2. Solar surplus → charge the stationary battery.
- *   3. Remaining solar surplus → charge the EV (if it's home); whatever
- *      charging room solar doesn't cover is then topped up from the grid,
- *      immediately, the same hour — a real EV charger starts drawing power
- *      the instant it's plugged in, rather than waiting for a cheaper tariff
- *      period or leftover solar. This is the one deliberate exception to
- *      "neither battery ever charges from the grid": the EV can, the
- *      stationary battery (step 2, above) still never does.
+ *   3. Remaining solar surplus → charge the EV (if it's home), up to its
+ *      Charge Cap %; whatever charging room solar doesn't cover is then
+ *      topped up from the grid, immediately, the same hour — a real EV
+ *      charger starts drawing power the instant it's plugged in, rather than
+ *      waiting for a cheaper tariff period or leftover solar. This is the one
+ *      deliberate exception to "neither battery ever charges from the grid":
+ *      the EV can, the stationary battery (step 2, above) still never does.
  *   4. Remaining solar surplus → sell to the grid ("export").
  *   5. Unmet demand → discharge the stationary battery (any time of day, as
  *      long as it's above its Reserve floor).
@@ -186,6 +186,11 @@ export function runHourlyDispatch(
   // rather than percent so it's directly comparable to the charge levels above.
   const reserveFloorKwh = (inputs.battery.reserveSocPct / 100) * inputs.battery.capacityKwh;
   const evFloorKwh = (ev.dischargeFloorPct / 100) * ev.capacityKwh;
+
+  // The ceiling the EV is never charged above — see EVConfig.chargeCapPct's doc
+  // comment. Computed once in kWh, same as the floor above, so it's directly
+  // comparable to evSocKwh in the charge-room formula below.
+  const evChargeCapKwh = (ev.chargeCapPct / 100) * ev.capacityKwh;
 
   const hourlyStates: HourlyState[] = [];
 
@@ -236,7 +241,13 @@ export function runHourlyDispatch(
     let evChargeKw = 0; // solar-sourced portion
     let evGridChargeKw = 0; // grid-sourced portion
     if (pluggedIn) {
-      const evChargeRoomKw = Math.max(0, Math.min(ev.chargerPowerKw, ev.capacityKwh - evSocKwh));
+      // Room is bounded by the charge CAP (chargeCapPct), not raw capacity — see
+      // EVConfig.chargeCapPct's doc comment. If evSocKwh is already above the cap
+      // (e.g. a high Starting Charge value put it there), this comes out
+      // negative and clamps to 0 via the outer Math.max: charging simply pauses
+      // until the EV drops back under the cap on its own, rather than being
+      // forced down to it.
+      const evChargeRoomKw = Math.max(0, Math.min(ev.chargerPowerKw, evChargeCapKwh - evSocKwh));
       evChargeKw = Math.min(remainingSolarKw, evChargeRoomKw);
       const roomAfterSolarKw = evChargeRoomKw - evChargeKw;
       const gridChargingAllowedThisHour =

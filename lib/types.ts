@@ -119,6 +119,11 @@ export interface EVConfig {
   dailyCommuteKwh: number; // 5-30, default 12 — total round-trip energy used per day
   startingSocPct: number; // how full the EV is at the start of the simulated day.
   // Also not in the original feature list — added for the same reason as above.
+  chargeCapPct: number; // 50-100, default 80 — the EV is never charged (from solar
+  // OR the grid, any hour of the day) above this ceiling, mirroring a real-world
+  // EV owner setting to protect battery longevity. Only limits charging — it does
+  // NOT retroactively pull the EV down if it's already above the cap (e.g. from a
+  // high Starting Charge value); see getEffectiveEVConfig()'s doc comment.
   avoidPeakGridCharging: boolean; // true (default) = the EV still charges from
   // the grid the moment solar can't keep up, but WAITS out Evening Peak
   // specifically rather than importing at the day's most expensive rate —

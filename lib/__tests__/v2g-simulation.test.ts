@@ -310,6 +310,63 @@ describe("v2g-simulation engine", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // Test 6d: the EV's Max Charge Cap is a real ceiling — even with a low
+  // starting charge, plenty of solar, and grid top-ups allowed all day, the
+  // EV's SoC% should never rise above the configured cap, in any hour. See
+  // README.md "Locked decisions" #12.
+  // ---------------------------------------------------------------------------
+  test("EV never charges above its Max Charge Cap, all day", () => {
+    const inputs: SimulationInputs = {
+      ...DEFAULT_SIMULATION_INPUTS,
+      ev: {
+        ...DEFAULT_SIMULATION_INPUTS.ev,
+        startingSocPct: 0, // start empty, so there's maximum room to (over)charge
+        // into if the cap didn't hold
+        chargeCapPct: 65,
+        avoidPeakGridCharging: false, // remove every other reason charging might
+        // pause, isolating the cap as the only thing capping it
+      },
+    };
+    const scaled = scaleReferenceData(inputs, refSolar, refLoad);
+    const result = runHourlyDispatch(inputs, scaled, tariff);
+
+    for (const state of result.hourlyStates) {
+      expect(state.evSocPct).toBeLessThanOrEqual(65 + 1e-9);
+    }
+    // Confirm the premise: with a whole day of solar + grid charging available
+    // and no other blocker, the EV really does reach the cap (not just
+    // "happens to never exceed it because it never got the chance to").
+    const finalState = result.hourlyStates[23];
+    expect(finalState.evSocPct).toBeCloseTo(65, 6);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Test 6e: the cap only blocks FUTURE charging — it must not retroactively
+  // pull the EV's SoC down if Starting Charge already put it above the cap.
+  // See README.md "Locked decisions" #12.
+  // ---------------------------------------------------------------------------
+  test("Max Charge Cap doesn't force the EV down if it starts above the cap", () => {
+    const inputs: SimulationInputs = {
+      ...DEFAULT_SIMULATION_INPUTS,
+      ev: {
+        ...DEFAULT_SIMULATION_INPUTS.ev,
+        startingSocPct: 90,
+        chargeCapPct: 50, // below the starting charge on purpose
+      },
+    };
+    const scaled = scaleReferenceData(inputs, refSolar, refLoad);
+    const result = runHourlyDispatch(inputs, scaled, tariff);
+
+    // At midnight (hour 0), the EV should still be sitting well above the cap
+    // — not clamped down to it — and shouldn't have drawn any charging power,
+    // since it's already over the cap with room to charge into being zero.
+    const midnight = result.hourlyStates[0];
+    expect(midnight.evSocPct).toBeGreaterThan(50);
+    expect(midnight.evChargeKw).toBeCloseTo(0, 6);
+    expect(midnight.evGridChargeKw).toBeCloseTo(0, 6);
+  });
+
+  // ---------------------------------------------------------------------------
   // Bonus regression guard: a Sensitivity Matrix cell with reserveSocPct=0 and
   // stationaryCapacityKwh=0 (i.e. "no stationary battery at all") should give
   // the exact same payback result as calling the main engine directly with no

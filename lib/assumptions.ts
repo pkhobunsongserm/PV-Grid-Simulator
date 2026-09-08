@@ -80,4 +80,10 @@ export const ASSUMPTIONS: Assumption[] = [
     detail:
       "By default the stationary battery starts each simulated day sitting exactly at its Reserve SoC, and the EV starts at 80% (\"charged up overnight\") — both are adjustable via their own Starting Charge sliders, but that's what a fresh scenario assumes until you change them.",
   },
+  {
+    id: "ev-charge-cap",
+    title: "The EV has its own charge ceiling, separate from its floor",
+    detail:
+      "Max Charge Cap (default 80%, adjustable 50-100%) mirrors a real EV owner's own charge-limit setting — the EV is never charged, from solar or the grid, above this line, any hour of the day, including after it recharges from a V2G discharge. It only limits future charging: if the EV's Starting Charge is set above the cap, it isn't forced down, it simply won't charge any higher until it naturally drops back under.",
+  },
 ];

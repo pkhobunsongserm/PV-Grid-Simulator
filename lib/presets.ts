@@ -47,6 +47,9 @@ export const PRESETS: PresetConfig[] = [
         dischargeFloorPct: 20, // the lowest floor allowed — makes more of the EV's
         // battery available to help during an outage, at the cost of less
         // reserved driving range
+        chargeCapPct: 100, // override the app-wide 80% default — this preset's
+        // whole point is maximizing backup energy, so the EV should be able to
+        // charge all the way up rather than being held at a battery-longevity cap
       },
       solar: {
         capacityKw: 20, // the maximum the spec allows, to recharge both batteries
