@@ -143,6 +143,14 @@ const FLOW_DEFINITIONS: FlowDefinition[] = [
     colorVar: "var(--chart-muted)",
     getKw: (s) => s.gridImportKw,
   },
+  {
+    id: "grid-ev",
+    from: "grid",
+    to: "ev",
+    label: "Grid → EV",
+    colorVar: "var(--chart-muted)",
+    getKw: (s) => s.evGridChargeKw,
+  },
 ];
 
 /** Stroke width scales with flow magnitude, capped at both ends so a tiny

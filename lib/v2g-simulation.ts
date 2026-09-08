@@ -152,7 +152,13 @@ export function getEffectiveEVConfig(ev: EVConfig): EVConfig {
  * "Locked decisions" #3 for the reasoning behind this specific order):
  *   1. Solar → home load, directly.
  *   2. Solar surplus → charge the stationary battery.
- *   3. Remaining solar surplus → charge the EV (if it's home).
+ *   3. Remaining solar surplus → charge the EV (if it's home); whatever
+ *      charging room solar doesn't cover is then topped up from the grid,
+ *      immediately, the same hour — a real EV charger starts drawing power
+ *      the instant it's plugged in, rather than waiting for a cheaper tariff
+ *      period or leftover solar. This is the one deliberate exception to
+ *      "neither battery ever charges from the grid": the EV can, the
+ *      stationary battery (step 2, above) still never does.
  *   4. Remaining solar surplus → sell to the grid ("export").
  *   5. Unmet demand → discharge the stationary battery (any time of day, as
  *      long as it's above its Reserve floor).
@@ -212,12 +218,31 @@ export function runHourlyDispatch(
     stationarySocKwh += stationaryChargeKw * HOURS_PER_STEP;
     remainingSolarKw -= stationaryChargeKw;
 
-    // --- Step 3: remaining solar surplus charges the EV, if it's home ---
-    let evChargeKw = 0;
+    // --- Step 3: EV charges whenever it's plugged in — solar surplus first
+    // (free), then the grid tops up whatever room is left, the same hour.
+    // Unlike the stationary battery, the EV is modeled as an ordinary
+    // (non-smart) charger: it starts drawing power the moment it's plugged
+    // in, rather than waiting for solar to cooperate — so it's topped back
+    // up as soon as it's home, not left stuck at whatever charge it arrived
+    // with. This is the one deliberate exception to "neither battery ever
+    // charges from the grid" (the stationary battery, step 2 above, still
+    // only ever charges from solar).
+    //
+    // Whether it also waits out Evening Peak specifically (the tariff's most
+    // expensive period) before drawing from the grid is the EV's own
+    // avoidPeakGridCharging setting — "immediate" still means immediate
+    // during every other period, this only defers the grid top-up (never the
+    // free solar-sourced charging above) through the priciest few hours.
+    let evChargeKw = 0; // solar-sourced portion
+    let evGridChargeKw = 0; // grid-sourced portion
     if (pluggedIn) {
       const evChargeRoomKw = Math.max(0, Math.min(ev.chargerPowerKw, ev.capacityKwh - evSocKwh));
       evChargeKw = Math.min(remainingSolarKw, evChargeRoomKw);
-      evSocKwh += evChargeKw * HOURS_PER_STEP;
+      const roomAfterSolarKw = evChargeRoomKw - evChargeKw;
+      const gridChargingAllowedThisHour =
+        !ev.avoidPeakGridCharging || tariffEntry.period !== "Evening Peak";
+      evGridChargeKw = gridChargingAllowedThisHour ? roomAfterSolarKw : 0;
+      evSocKwh += (evChargeKw + evGridChargeKw) * HOURS_PER_STEP;
       remainingSolarKw -= evChargeKw;
     }
 
@@ -260,10 +285,14 @@ export function runHourlyDispatch(
       stationaryChargeKw,
       stationaryDischargeKw,
       evChargeKw,
+      evGridChargeKw,
       evDischargeKw,
       gridImportKw,
       gridExportKw,
-      importCost: gridImportKw * HOURS_PER_STEP * tariffEntry.import_rate_per_kwh,
+      // Grid spend this hour covers both the home's own unmet demand AND
+      // whatever the EV drew straight from the grid to charge — two
+      // separate reasons to buy power, but one bill.
+      importCost: (gridImportKw + evGridChargeKw) * HOURS_PER_STEP * tariffEntry.import_rate_per_kwh,
       exportRevenue: gridExportKw * HOURS_PER_STEP * tariffEntry.export_rate_per_kwh,
     });
   }

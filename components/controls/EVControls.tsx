@@ -29,8 +29,9 @@ export function EVControls() {
       icon={Car}
       description={
         <>
-          Your electric vehicle and its bidirectional charger — also solar-only, never charges
-          from the grid. <InfoLink id="no-grid-charging" />
+          Your electric vehicle and its bidirectional charger — charges from solar first, then
+          the grid (by default, waiting out the priciest hours first).{" "}
+          <InfoLink id="no-grid-charging" />
         </>
       }
     >
@@ -58,6 +59,26 @@ export function EVControls() {
             step={0.1}
             onChange={(chargerPowerKw) => setEV({ chargerPowerKw })}
             formatValue={(v) => `${v.toFixed(1)} kW`}
+            helpText={
+              <>
+                Caps how fast the EV can charge OR discharge — including grid-charging, so a
+                bigger number here can mean a bigger grid bill, not just a faster fill-up.{" "}
+                <InfoLink id="no-grid-charging" />
+              </>
+            }
+          />
+          <ToggleField
+            label="Avoid peak-price grid charging"
+            checked={ev.avoidPeakGridCharging}
+            onChange={(avoidPeakGridCharging) => setEV({ avoidPeakGridCharging })}
+            helpText={
+              <>
+                On (default): the EV still charges from the grid the moment solar can&apos;t keep
+                up, but waits out Evening Peak (the day&apos;s most expensive rate) first, resuming
+                the instant Off-Peak or Solar Sponge starts. Off: charges immediately regardless
+                of price, even at Evening Peak rates. <InfoLink id="no-grid-charging" />
+              </>
+            }
           />
           <SliderField
             label="EV Discharge Floor"
@@ -92,7 +113,13 @@ export function EVControls() {
             label="Arrival Time"
             value={ev.arrivalHour}
             onChange={(arrivalHour) => setEV({ arrivalHour })}
-            helpText="When the EV returns home and becomes available again."
+            helpText={
+              <>
+                When the EV returns home and becomes available again — and starts charging back
+                up right away, from solar then the grid (subject to the peak-pricing toggle
+                below). <InfoLink id="no-grid-charging" />
+              </>
+            }
           />
           {/* A basic input-validation guard, not a hard block — Departure ==
            * Arrival is a legal value (isEvAway() in lib/v2g-simulation.ts

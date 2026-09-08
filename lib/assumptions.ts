@@ -40,9 +40,9 @@ export const ASSUMPTIONS: Assumption[] = [
   },
   {
     id: "no-grid-charging",
-    title: "Neither battery ever buys grid power to store",
+    title: "The two batteries charge from the grid very differently",
     detail:
-      "The stationary battery and the EV only ever charge from solar surplus — never from the grid, even during cheap Off-Peak or Solar Sponge hours. If your real setup would top up overnight from the grid, this model won't show those extra import costs or that extra reserve charge.",
+      "The stationary battery only ever charges from solar surplus — never the grid, at any tariff period, so its cost model is always \"free to fill.\" The EV is the opposite: like a real EV charger, it starts drawing power the moment it's plugged in, using solar first and topping up the rest from the grid. By default it waits out Evening Peak (the day's most expensive rate) before doing that grid top-up, resuming the moment Off-Peak or Solar Sponge starts — turn off \"Avoid peak-price grid charging\" to see it import at Evening Peak rates instead, which can meaningfully hurt Payback Years if the EV arrives home needing a real top-up during that window.",
   },
   {
     id: "reserve-floor",

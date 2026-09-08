@@ -119,6 +119,12 @@ export interface EVConfig {
   dailyCommuteKwh: number; // 5-30, default 12 — total round-trip energy used per day
   startingSocPct: number; // how full the EV is at the start of the simulated day.
   // Also not in the original feature list — added for the same reason as above.
+  avoidPeakGridCharging: boolean; // true (default) = the EV still charges from
+  // the grid the moment solar can't keep up, but WAITS out Evening Peak
+  // specifically rather than importing at the day's most expensive rate —
+  // resuming the instant Off-Peak or Solar Sponge starts. false = charge
+  // immediately regardless of price, even during Evening Peak. Solar-sourced
+  // charging is never affected either way — this only gates the grid top-up.
 }
 
 /** Settings for the solar PV system. */
@@ -176,11 +182,16 @@ export interface HourlyState {
   evPluggedIn: boolean; // was the EV physically home this hour?
   stationaryChargeKw: number; // power flowing INTO the stationary battery this hour
   stationaryDischargeKw: number; // power flowing OUT OF it this hour
-  evChargeKw: number; // power flowing INTO the EV this hour
+  evChargeKw: number; // power flowing INTO the EV this hour, SOLAR-sourced only
+  evGridChargeKw: number; // power flowing INTO the EV this hour, GRID-sourced —
+  // the EV (unlike the stationary battery) tops up from the grid the moment
+  // it's plugged in and solar isn't enough; see runHourlyDispatch's step 3.
   evDischargeKw: number; // power flowing OUT OF the EV (V2G) this hour
-  gridImportKw: number; // power bought from the grid this hour
+  gridImportKw: number; // power bought from the grid for the HOME this hour —
+  // does not include evGridChargeKw, which is tracked (and costed) separately
   gridExportKw: number; // power sold to the grid this hour
-  importCost: number; // AUD spent buying grid power this hour
+  importCost: number; // AUD spent buying grid power this hour, covering both
+  // gridImportKw (home) and evGridChargeKw (EV) together
   exportRevenue: number; // AUD earned selling power to the grid this hour
 }
 

@@ -113,7 +113,10 @@ Every simulated hour, in this exact order:
 
 1. Solar → home load, direct.
 2. Solar surplus → stationary battery charge (≤10kW rate, ≤capacity).
-3. Remaining solar surplus → EV charge, if plugged in (≤charger power, ≤capacity).
+3. Remaining solar surplus → EV charge, if plugged in (≤charger power, ≤capacity); any
+   charging room solar doesn't fill is then topped up from the grid, the same hour (see
+   the Phase 9 changelog entry — this is a deliberate, later exception, not part of the
+   original MVP simplification below).
 4. Remaining solar surplus → export to grid.
 5. Unmet demand → stationary battery discharge, **any period**, as long as its SoC is
    above the Reserve floor.
@@ -121,13 +124,17 @@ Every simulated hour, in this exact order:
    in and above its floor.
 7. Remaining unmet demand → grid import.
 
-**MVP simplification, stated on purpose**: neither battery ever charges from the grid,
-even during cheap Solar-Sponge/Off-Peak hours — only from solar surplus. This is what
-makes step 5's "discharge any time it beats an import" rule safe: since all stored
-energy is free (solar-origin), there's never a case where holding it back would have
-been better. Adding grid-charging later (see Future Features, in the planning history)
-would break that assumption and require a genuinely smarter dispatch rule, not just a
-tweak.
+**MVP simplification, stated on purpose (stationary battery only — see the Phase 9
+changelog entry for the EV's later exception)**: the stationary battery never charges
+from the grid, even during cheap Solar-Sponge/Off-Peak hours — only from solar surplus.
+This is what makes step 5's "discharge any time it beats an import" rule safe for THAT
+battery: since all its stored energy is free (solar-origin), there's never a case where
+holding it back would have been better. The EV no longer shares this guarantee (it can
+hold grid-bought energy), but step 6's V2G discharge stays economically harmless even
+so: with no round-trip efficiency loss modeled, buying a kWh at Evening Peak in step 3
+and discharging that same kWh back to the house later in that same Evening Peak window
+(step 6) nets to exactly zero, never a loss — just possibly a redundant-looking pair of
+flows in the same hour's trace, not a financial bug.
 
 ### 4. Reserve SoC vs. EV Discharge Floor — intentionally asymmetric
 These are two different sliders governing two different batteries, and they behave
@@ -260,6 +267,71 @@ Tracks decisions, additions, and deviations from the original feature spec made
 was decided during planning, before any code existed. Entries are grouped by phase,
 newest first. For the full story behind any entry — what led to it, what was tried,
 what broke — see the matching file in `docs/dev-log/`.
+
+### Phase 10 — EV grid-charging on arrival
+
+- **The EV now charges from the grid, not just solar surplus** — a deliberate,
+  explicitly-requested exception to decision #3's "no battery ever charges
+  from the grid" rule, scoped to the EV only. Real-world motivation: an EV
+  that arrives home in the evening (the app's own default schedule) was
+  previously stuck at whatever charge it had left from its commute for the
+  rest of the simulated day, since there's rarely leftover solar after
+  sunset — which didn't match how anyone would actually use a home EV
+  charger (plug in, it starts charging). Step 3 of the dispatch loop now
+  tops up any charging room solar doesn't cover from the grid, immediately,
+  the same hour — same as a real charger, not a smart/scheduled one that
+  waits for a cheaper tariff period.
+- **New `evGridChargeKw` field on `HourlyState`**, kept separate from
+  `evChargeKw` (now solar-sourced only) rather than folding the grid draw
+  into it, so the Energy Flow Diagram's "Solar → EV" arrow doesn't silently
+  start claiming paid grid energy as free solar. A new "Grid → EV" flow was
+  added alongside it, reusing Grid's existing neutral-gray color (same
+  reasoning as the existing "Grid → Home" flow). `gridImportKw` keeps its
+  original HOME-only meaning; `importCost` now sums both.
+- **First cut was unconditional and broke the app's flagship number**: with
+  the app's defaults (EV arrives 6pm, squarely inside Evening Peak — the
+  tariff's most expensive period, $0.58/kWh), the EV needing a meaningful
+  top-up on arrival flipped the default "Commuter EV" scenario from
+  +$2,654.83/yr savings (10.1yr payback) to **‑$673.97/yr, payback N/A** —
+  and every other preset's payback ballooned too. Real and intentional given
+  the literal request, but severe enough on the app's core "does this pay
+  for itself?" story that it needed a second pass rather than shipping as-is.
+- **Added `EVConfig.avoidPeakGridCharging`** (default **true**) — a new
+  toggle ("Avoid peak-price grid charging" in EV & V2G Configuration) so the
+  EV still tops up from the grid the moment solar can't cover it, but WAITS
+  out Evening Peak specifically before doing so, resuming the instant
+  Off-Peak or Solar Sponge starts. Solar-sourced charging is never affected
+  either way. With the default ON, the Commuter EV scenario now shows
+  +$975.83/yr savings (27.6yr payback) — better than the unconditional
+  version, but still genuinely lower than the pre-Phase-10 baseline, because
+  the EV now reliably tops up in full every night (24kWh at Off-Peak's
+  $0.22/kWh) instead of simply staying partially charged at no cost, which
+  is what actually happened before this phase. That remaining gap is a real,
+  correctly-modeled cost of "the EV always ends up full," not a pricing bug.
+- **New `evGridChargeKw` field on `HourlyState`**, kept separate from
+  `evChargeKw` (now solar-sourced only) rather than folding the grid draw
+  into it, so the Energy Flow Diagram's "Solar → EV" arrow doesn't silently
+  start claiming paid grid energy as free solar. A new "Grid → EV" flow was
+  added alongside it, reusing Grid's existing neutral-gray color (same
+  reasoning as the existing "Grid → Home" flow). `gridImportKw` keeps its
+  original HOME-only meaning; `importCost` now sums both.
+- **Cost consequence called out rather than hidden**: updated
+  `lib/assumptions.ts`'s "no-grid-charging" entry (and the EV controls that
+  link to it) to explain both the toggle and the underlying tradeoff,
+  rather than leave the old "neither battery ever buys grid power" claim
+  standing after it became false for the EV.
+- **`lib/__tests__/v2g-simulation.test.ts`'s commute-deduction test
+  (Test 6) needed rewriting**, not just re-running: it previously proved
+  "nothing charges the EV before departure" by relying on there being no
+  solar that early in the morning — an argument grid-charging invalidates
+  for ANY plugged-in hour, not just post-arrival ones. Rewritten to start
+  the EV already at 100% (no charging room available from either source) so
+  the departure-deduction behavior it actually tests stays isolated from the
+  charging mechanism entirely. New tests lock in: the EV grid-charging even
+  at Evening Peak rates when the toggle is off; the EV deferring grid
+  charging through Evening Peak and catching up right after when the toggle
+  is on (the default); and that the stationary battery's own solar-only
+  guarantee is unaffected either way.
 
 ### Phase 9 — In-app assumption disclosure + default blackout hour
 

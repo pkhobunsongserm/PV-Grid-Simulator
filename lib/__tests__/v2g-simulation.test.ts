@@ -173,23 +173,27 @@ describe("v2g-simulation engine", () => {
   // below zero. See README.md "Locked decisions" #5.
   // ---------------------------------------------------------------------------
   test("commute energy is deducted exactly once, at departure, and clamped at zero", () => {
-    const { dailyCommuteKwh, capacityKwh, departureHour } = DEFAULT_SIMULATION_INPUTS.ev;
+    const { dailyCommuteKwh, departureHour } = DEFAULT_SIMULATION_INPUTS.ev;
     const inputs: SimulationInputs = {
       ...DEFAULT_SIMULATION_INPUTS,
       ev: {
         ...DEFAULT_SIMULATION_INPUTS.ev,
-        // Start the EV with EXACTLY enough charge for one commute, so departure
-        // should bring it to precisely zero.
-        startingSocPct: (dailyCommuteKwh / capacityKwh) * 100,
+        // Capacity set to exactly one commute's worth, starting FULL — so
+        // there's zero charging room available before departure
+        // (capacityKwh - evSocKwh = 0), from EITHER source. That isolates
+        // the commute deduction from the EV's charging behavior entirely —
+        // now that the EV can also charge from the grid (not just solar,
+        // see the Phase 10 changelog entry), "no solar this early" alone
+        // wouldn't be enough to keep the EV from charging before departure.
+        capacityKwh: dailyCommuteKwh,
+        startingSocPct: 100,
       },
     };
     const scaled = scaleReferenceData(inputs, refSolar, refLoad);
     const result = runHourlyDispatch(inputs, scaled, tariff);
 
-    // Nothing should have charged the EV in the hours before it leaves (there's
-    // no solar surplus available that early in the morning in this data), so
-    // its charge should still be sitting at the starting amount right up until
-    // departure.
+    // With no charging room available, the EV should still be sitting at its
+    // starting charge right up until departure.
     const hourBeforeDeparture = result.hourlyStates[departureHour - 1];
     expect(hourBeforeDeparture.evSocKwh).toBeCloseTo(dailyCommuteKwh, 6);
 
@@ -202,6 +206,106 @@ describe("v2g-simulation engine", () => {
     // deduction isn't being (incorrectly) reapplied on a later hour.
     for (const state of result.hourlyStates) {
       expect(state.evSocKwh).toBeGreaterThanOrEqual(-1e-9);
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Test 6b: with peak-price avoidance turned OFF, the EV tops up from the
+  // grid the moment it's plugged in, if solar can't cover the room left to
+  // charge — even at Evening Peak rates. Uses the default schedule, where the
+  // EV arrives home at 6pm (Evening Peak) with next to no solar left in the
+  // reference data, so any real recharge that hour has to come from the grid.
+  // See the Phase 10 changelog entry.
+  // ---------------------------------------------------------------------------
+  test("EV tops up from the grid on arrival when solar can't cover it, with peak avoidance off", () => {
+    const inputs: SimulationInputs = {
+      ...DEFAULT_SIMULATION_INPUTS,
+      ev: { ...DEFAULT_SIMULATION_INPUTS.ev, avoidPeakGridCharging: false },
+    };
+    const scaled = scaleReferenceData(inputs, refSolar, refLoad);
+    const result = runHourlyDispatch(inputs, scaled, tariff);
+    const { arrivalHour } = inputs.ev;
+
+    const arrivalState = result.hourlyStates[arrivalHour];
+    // Confirm the premise: there's real charging room left (the EV isn't
+    // already full), solar alone doesn't fill it that hour, and this hour
+    // really is Evening Peak (otherwise this wouldn't be testing what it
+    // claims to).
+    expect(arrivalState.period).toBe("Evening Peak");
+    expect(arrivalState.evSocPct).toBeLessThan(100);
+    expect(arrivalState.evGridChargeKw).toBeGreaterThan(0);
+
+    // The EV's charge level should have risen by exactly the solar- plus
+    // grid-sourced power that hour — no energy appearing from nowhere.
+    const beforeArrival = result.hourlyStates[arrivalHour - 1];
+    expect(arrivalState.evSocKwh - beforeArrival.evSocKwh).toBeCloseTo(
+      arrivalState.evChargeKw + arrivalState.evGridChargeKw,
+      6
+    );
+
+    // That grid-sourced charging cost real money, at that hour's import rate
+    // — folded into the same importCost the home's own grid usage uses.
+    const tariffEntry = tariff.hourly_schedule[arrivalHour];
+    expect(arrivalState.importCost).toBeGreaterThanOrEqual(
+      arrivalState.evGridChargeKw * tariffEntry.import_rate_per_kwh - 1e-9
+    );
+  });
+
+  // ---------------------------------------------------------------------------
+  // Test 6b2: with peak-price avoidance ON (the default), the EV must NOT
+  // grid-charge during Evening Peak, even with real room to charge and no
+  // solar — it should wait, then catch up the instant Off-Peak/Solar Sponge
+  // resumes. This is what keeps the app's default, out-of-the-box payback
+  // number realistic rather than eaten by importing at the worst rate on
+  // every single arrival — see the Phase 10 changelog entry.
+  // ---------------------------------------------------------------------------
+  test("EV defers grid charging through Evening Peak by default, then catches up after", () => {
+    const scaled = scaleReferenceData(DEFAULT_SIMULATION_INPUTS, refSolar, refLoad);
+    const result = runHourlyDispatch(DEFAULT_SIMULATION_INPUTS, scaled, tariff);
+
+    const eveningPeakStates = result.hourlyStates.filter((s) => s.period === "Evening Peak");
+    // Sanity-check the premise: Evening Peak hours actually exist today and
+    // the EV is plugged in (home) for at least one of them — otherwise this
+    // test would trivially pass without exercising the deferral at all.
+    expect(eveningPeakStates.some((s) => s.evPluggedIn)).toBe(true);
+
+    for (const state of eveningPeakStates) {
+      expect(state.evGridChargeKw).toBeCloseTo(0, 6);
+    }
+
+    // The very next hour after Evening Peak ends should be free to grid-charge
+    // again (assuming there's still real room and the EV is still plugged in) —
+    // confirming this is a DEFERRAL, not a permanent block for the rest of the day.
+    const lastEveningPeakHour = Math.max(...eveningPeakStates.map((s) => s.hour));
+    const nextHourState = result.hourlyStates[(lastEveningPeakHour + 1) % 24];
+    if (nextHourState.evPluggedIn && nextHourState.evSocPct < 100) {
+      expect(nextHourState.evGridChargeKw).toBeGreaterThan(0);
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Test 6c: the stationary battery's OWN "never charges from the grid"
+  // guarantee (decision #3) must still hold — the EV grid-charging exception
+  // above must not have accidentally leaked onto the stationary battery too.
+  // ---------------------------------------------------------------------------
+  test("stationary battery still never charges from the grid, even overnight", () => {
+    const inputs: SimulationInputs = {
+      ...DEFAULT_SIMULATION_INPUTS,
+      // Start well below capacity, well above reserve, so there's room to
+      // charge if the (bugged) engine ever let it — isolates the thing being
+      // tested from reserve-floor or full-battery edge cases.
+      battery: { capacityKwh: 10, reserveSocPct: 0, startingSocPct: 20 },
+    };
+    const scaled = scaleReferenceData(inputs, refSolar, refLoad);
+    const result = runHourlyDispatch(inputs, scaled, tariff);
+
+    for (const state of result.hourlyStates) {
+      // The only way stationarySocKwh can rise this hour is stationaryChargeKw
+      // (solar-sourced, by construction — see runHourlyDispatch's step 2). If
+      // it ever rose by more than that, energy would have to have come from
+      // somewhere else — the grid, since there's no other source in this
+      // engine.
+      expect(state.stationaryChargeKw).toBeLessThanOrEqual(state.solarKw + 1e-9);
     }
   });
 
@@ -383,6 +487,7 @@ describe("v2g-simulation engine", () => {
 
     for (const state of result.hourlyStates) {
       expect(state.evChargeKw).toBeCloseTo(0, 6);
+      expect(state.evGridChargeKw).toBeCloseTo(0, 6);
       expect(state.evDischargeKw).toBeCloseTo(0, 6);
       expect(state.evSocKwh).toBeCloseTo(0, 6);
       expect(state.evSocPct).toBeCloseTo(0, 6);
@@ -412,10 +517,9 @@ describe("v2g-simulation engine", () => {
   // Test 10: with the EV opted out, the "combined" and "stationary-only" outage
   // survival figures must be identical — there's no EV to contribute anything.
   // Uses the default commute schedule (8am-6pm) and default blackoutStartHour
-  // (18:00, when the EV would normally be freshly home and well-charged) so
-  // this genuinely proves the exclusion, rather than the EV happening to be
-  // away or empty for unrelated reasons (see Test 4, which tests that
-  // different scenario).
+  // so this genuinely proves the exclusion at whatever hour the app currently
+  // defaults to, rather than the EV happening to be away or empty for
+  // unrelated reasons (see Test 4, which tests that different scenario).
   // ---------------------------------------------------------------------------
   test("outageCombined equals outageStationaryOnly when the household doesn't own an EV", () => {
     const inputs: SimulationInputs = {

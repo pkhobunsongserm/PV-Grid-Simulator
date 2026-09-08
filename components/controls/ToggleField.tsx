@@ -10,7 +10,7 @@
 // -----------------------------------------------------------------------------
 "use client";
 
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 
 interface ToggleFieldProps {
   /** The text label shown next to the checkbox, e.g. "This household owns an EV". */
@@ -19,8 +19,9 @@ interface ToggleFieldProps {
   checked: boolean;
   /** Called with the new value whenever the user clicks the checkbox. */
   onChange: (checked: boolean) => void;
-  /** Optional small explanatory line shown below the toggle. */
-  helpText?: string;
+  /** Optional small explanatory line shown below the toggle. ReactNode (not
+   * just string) so it can end in an InfoLink. */
+  helpText?: ReactNode;
 }
 
 export function ToggleField({ label, checked, onChange, helpText }: ToggleFieldProps) {
