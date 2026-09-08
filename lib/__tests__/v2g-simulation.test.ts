@@ -395,12 +395,61 @@ describe("v2g-simulation engine", () => {
       refLoad
     );
 
-    expect(cell.paybackYears).toBe(directResult.financials.paybackYears);
+    expect(cell.paybackYearsCombined).toBe(directResult.financials.paybackYears);
     expect(cell.survivalHoursCombined).toBeCloseTo(
       directResult.outageCombined.survivalHours,
       6
     );
     expect(cell.survivalHoursCombinedExhausted).toBe(directResult.outageCombined.exhausted);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Test: a sensitivity matrix cell's "no EV" payback is a genuine
+  // counterfactual re-simulation, not a cheap re-reading of the "with EV"
+  // number — it should match calling the engine directly with that same
+  // battery cell but the EV opted out, AND (for a household that owns an EV
+  // with real charging costs) it should come out DIFFERENT from the
+  // "with EV" payback, both because the V2G charger's fixed cost drops out of
+  // totalCapex and because the day's dispatch itself changes. See README.md
+  // "Locked decisions" #12/#8.
+  // ---------------------------------------------------------------------------
+  test("sensitivity matrix cell's paybackYearsStationaryOnly matches a direct no-EV simulation, and differs from paybackYearsCombined", () => {
+    const matrix = runSensitivityMatrix(
+      DEFAULT_SIMULATION_INPUTS, // default inputs own an EV
+      tariff,
+      refSolar,
+      refLoad,
+      [DEFAULT_SIMULATION_INPUTS.battery.reserveSocPct],
+      [DEFAULT_SIMULATION_INPUTS.battery.capacityKwh]
+    );
+    const cell = matrix[0][0];
+
+    const noEvInputs: SimulationInputs = {
+      ...DEFAULT_SIMULATION_INPUTS,
+      ev: { ...DEFAULT_SIMULATION_INPUTS.ev, ownsEv: false },
+    };
+    const directNoEvResult = runFullSimulation(noEvInputs, tariff, refSolar, refLoad);
+
+    expect(cell.paybackYearsStationaryOnly).toBe(directNoEvResult.financials.paybackYears);
+    // Confirm this is actually testing something: the two numbers should be
+    // meaningfully different, not coincidentally equal.
+    expect(cell.paybackYearsStationaryOnly).not.toBe(cell.paybackYearsCombined);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Test: when the household doesn't own an EV in the first place, the
+  // "Combined" and "Stationary Only" payback numbers should collapse to being
+  // identical — there's no EV to make them differ.
+  // ---------------------------------------------------------------------------
+  test("paybackYearsCombined equals paybackYearsStationaryOnly when the household doesn't own an EV", () => {
+    const inputs: SimulationInputs = {
+      ...DEFAULT_SIMULATION_INPUTS,
+      ev: { ...DEFAULT_SIMULATION_INPUTS.ev, ownsEv: false },
+    };
+    const matrix = runSensitivityMatrix(inputs, tariff, refSolar, refLoad, [20], [10]);
+    const cell = matrix[0][0];
+
+    expect(cell.paybackYearsCombined).toBe(cell.paybackYearsStationaryOnly);
   });
 
   // ---------------------------------------------------------------------------

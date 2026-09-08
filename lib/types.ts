@@ -240,7 +240,18 @@ export interface SensitivityMatrixCell {
   combinedCapacityKwh: number; // stationaryCapacityKwh + the EV's (fixed) capacity,
   // shown for context only — the EV capacity itself is never varied by the matrix,
   // see README.md "Locked decisions" #8
-  paybackYears: number | null;
+  paybackYearsCombined: number | null; // payback using the EV exactly as configured
+  // (including its charger cost in totalCapex, and its real charge/discharge
+  // behavior in the day's dispatch) — same number a household that owns an EV
+  // actually sees. If the household doesn't own one, this is identical to
+  // paybackYearsStationaryOnly (see runSensitivityMatrix's doc comment for why).
+  paybackYearsStationaryOnly: number | null; // payback for this SAME battery cell
+  // with NO EV at all — a genuine counterfactual re-run of the whole day's
+  // dispatch with the EV opted out (not a cheap re-interpretation of the
+  // combined numbers — unlike survival hours, a day's cost isn't cleanly
+  // separable into "the battery's share" vs. "the EV's share" after the fact,
+  // since they compete for the same solar surplus and unmet demand). Excludes
+  // the V2G charger's fixed cost from totalCapex, too.
   survivalHoursCombined: number; // survival hours counting both batteries together
   survivalHoursCombinedExhausted: boolean; // mirrors OutageResult.exhausted — false
   // means the batteries lasted the full simulated cap without running out, so the UI

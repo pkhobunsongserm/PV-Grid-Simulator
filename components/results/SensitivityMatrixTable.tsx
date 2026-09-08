@@ -23,30 +23,48 @@ import { InfoLink } from "@/components/common/InfoLink";
 import { formatPaybackYears, formatSurvivalHours } from "@/lib/format";
 import type { SensitivityMatrixCell } from "@/lib/types";
 
-// "survivalStationary" counts the stationary battery alone — this is the
-// number that actually moves as you sweep the matrix's own columns.
-// "survivalCombined" adds the EV in too, matching the Executive Summary
-// cards, but for any household that owns an EV its large fixed capacity
-// swamps the stationary battery's contribution almost everywhere on the
-// grid, making the table look like battery size "does nothing." See
-// SensitivityMatrixCell in lib/types.ts for the full explanation.
-type Metric = "payback" | "survivalStationary" | "survivalCombined";
+// "Stationary" variants count the stationary battery alone — the number that
+// actually moves as you sweep the matrix's own columns. "Combined" variants
+// add the EV in too, matching the Executive Summary cards, but for any
+// household that owns an EV its large fixed capacity (and, for payback, its
+// charger cost) can swamp the stationary battery's own effect almost
+// everywhere on the grid, making the table look like battery size "does
+// nothing." See SensitivityMatrixCell in lib/types.ts for the full
+// explanation — payback's "Combined" vs. "Stationary Only" is a genuine
+// counterfactual re-simulation (EV opted out entirely), not just a different
+// way of reading the same numbers the way the survival-hours split is.
+type Metric = "paybackStationary" | "paybackCombined" | "survivalStationary" | "survivalCombined";
 
 /** Pulls the right raw number (or null) out of a cell for whichever metric
  * is currently selected — kept as one small function so every place that
  * needs "the current metric's value" (coloring, formatting, min/max) reads
  * it the same way. */
 function metricValue(cell: SensitivityMatrixCell, metric: Metric): number | null {
-  if (metric === "payback") return cell.paybackYears;
+  if (metric === "paybackStationary") return cell.paybackYearsStationaryOnly;
+  if (metric === "paybackCombined") return cell.paybackYearsCombined;
   if (metric === "survivalStationary") return cell.survivalHoursStationaryOnly;
   return cell.survivalHoursCombined;
 }
 
 function formatCell(cell: SensitivityMatrixCell, metric: Metric): string {
-  if (metric === "payback") return formatPaybackYears(cell.paybackYears);
+  if (metric === "paybackStationary") return formatPaybackYears(cell.paybackYearsStationaryOnly);
+  if (metric === "paybackCombined") return formatPaybackYears(cell.paybackYearsCombined);
   if (metric === "survivalStationary")
     return formatSurvivalHours(cell.survivalHoursStationaryOnly, cell.survivalHoursStationaryOnlyExhausted);
   return formatSurvivalHours(cell.survivalHoursCombined, cell.survivalHoursCombinedExhausted);
+}
+
+/** Both "Combined" metrics (payback and survival) are meaningless as a
+ * SEPARATE option from their "Stationary Only" sibling when there's no EV to
+ * combine — the two numbers are identical in that case (see
+ * runSensitivityMatrix()'s doc comment). Used both to decide which toggle
+ * buttons to render and to fall a stale "Combined" selection back to its
+ * "Stationary Only" sibling if EV ownership gets turned off after the fact. */
+function isCombinedMetric(metric: Metric): boolean {
+  return metric === "paybackCombined" || metric === "survivalCombined";
+}
+function stationaryFallbackFor(metric: Metric): Metric {
+  return metric === "paybackCombined" ? "paybackStationary" : "survivalStationary";
 }
 
 const HEATMAP_BINS = 5;
@@ -64,15 +82,16 @@ function binIndexFor(value: number, min: number, max: number): number {
 
 export function SensitivityMatrixTable() {
   const matrix = useSensitivityMatrix();
-  const [metric, setMetric] = useState<Metric>("payback");
+  const [metric, setMetric] = useState<Metric>("paybackStationary");
   const ownsEv = useSimulationStore((s) => s.inputs.ev.ownsEv);
 
-  // "survivalCombined" is identical to "survivalStationary" whenever the
-  // household has no EV (there's nothing to combine), so that toggle option
-  // is hidden below — this falls the displayed metric back to
-  // "survivalStationary" without losing the user's chosen selection, in case
+  // Both "Combined" metrics are identical to their "Stationary Only" sibling
+  // whenever the household has no EV (there's nothing to combine), so those
+  // toggle options are hidden below — this falls a stale "Combined" selection
+  // back to its sibling without losing the user's chosen selection, in case
   // they flip EV ownership back on later.
-  const activeMetric = metric === "survivalCombined" && !ownsEv ? "survivalStationary" : metric;
+  const activeMetric = isCombinedMetric(metric) && !ownsEv ? stationaryFallbackFor(metric) : metric;
+  const isPayback = activeMetric === "paybackStationary" || activeMetric === "paybackCombined";
 
   // Which cell the sidebar's ACTUAL current sliders land closest to, so it
   // can be outlined below for orientation — the sliders move continuously,
@@ -118,13 +137,14 @@ export function SensitivityMatrixTable() {
         {/* A segmented toggle, not separate checkboxes — exactly one metric is
          * shown at a time, never more than one encoded into color at once
          * (that would need overlapping color scales on one grid, which is
-         * unreadable). The "+ EV" option only appears for a household that
-         * actually owns one — otherwise it would just repeat the "Battery
-         * Only" numbers, see the activeMetric fallback above. */}
-        <div className="flex rounded-md border text-xs" style={{ borderColor: "var(--chart-border)" }}>
+         * unreadable). Both "+ EV" options only appear for a household that
+         * actually owns one — otherwise they'd just repeat their "Battery
+         * Only" sibling's numbers, see the activeMetric fallback above. */}
+        <div className="flex flex-wrap rounded-md border text-xs" style={{ borderColor: "var(--chart-border)" }}>
           {(
             [
-              ["payback", "Payback Years"],
+              ["paybackStationary", "Payback Years (Battery Only)"],
+              ...(ownsEv ? ([["paybackCombined", "Payback Years (+ EV)"]] as const) : []),
               ["survivalStationary", "Survival Hours (Battery Only)"],
               ...(ownsEv ? ([["survivalCombined", "Survival Hours (+ EV)"]] as const) : []),
             ] as const
@@ -150,10 +170,12 @@ export function SensitivityMatrixTable() {
         Rows: Stationary Reserve SoC. Columns: Stationary Battery Capacity.
         {activeMetric === "survivalCombined" &&
           " EV capacity stays fixed at your current setting and is added on top of the stationary battery being swept below — for a household with an EV, that fixed contribution can dwarf the stationary battery's own effect, so it's easy for these numbers to look flat across a whole row; switch to \"Battery Only\" to see the stationary battery's effect in isolation."}
-        {activeMetric !== "payback" &&
+        {activeMetric === "paybackCombined" &&
+          " This re-simulates the whole day WITH the EV included (its charger cost, and its real charge/V2G behavior) for each cell — not just the \"Battery Only\" payback with the EV's numbers added on top, since a day's cost isn't cleanly split into each device's own share. Switch to \"Battery Only\" to see what payback would look like for this same battery cell with no EV at all."}
+        {(activeMetric === "survivalStationary" || activeMetric === "survivalCombined") &&
           " Reserve SoC (rows) only visibly moves these numbers when the blackout starts before that day's solar has recharged the battery — change the Outage Simulator's Blackout Start Time to see rows flatten or diverge."}
         {" "}Darker cells are a <em>higher</em>{" "}
-        {activeMetric === "payback" ? "payback (worse)" : "survival time (better)"} — color always
+        {isPayback ? "payback (worse)" : "survival time (better)"} — color always
         tracks magnitude, not &ldquo;good vs. bad,&rdquo; since payback and survival point in
         opposite directions. The outlined cell is closest to your current sliders.{" "}
         <InfoLink id="matrix" /> <InfoLink id="reserve-timing" label="Reserve SoC vs. timing" />
@@ -169,13 +191,18 @@ export function SensitivityMatrixTable() {
               {matrix[0].map((cell) => (
                 <th key={cell.stationaryCapacityKwh} className="px-2 py-1 font-medium" style={{ color: "var(--chart-text-primary)" }}>
                   {cell.stationaryCapacityKwh} kWh
-                  {/* With no EV, combinedCapacityKwh always equals
-                   * stationaryCapacityKwh (see getEffectiveEVConfig() in
-                   * lib/v2g-simulation.ts) — showing it here would just
-                   * repeat the number above for no reason. */}
-                  {ownsEv && (
+                  {/* Only shown on the two "+ EV" views — the sub-line says
+                   * "combined with the EV," so displaying it under either
+                   * "Battery Only" view (neither of which counts the EV's
+                   * battery contribution) would wrongly imply those numbers
+                   * include the EV too. With no EV, combinedCapacityKwh always
+                   * equals stationaryCapacityKwh anyway (see
+                   * getEffectiveEVConfig() in lib/v2g-simulation.ts), so the
+                   * ownsEv check also just avoids repeating the number above
+                   * for no reason. */}
+                  {ownsEv && (activeMetric === "survivalCombined" || activeMetric === "paybackCombined") && (
                     <div className="text-[10px] font-normal" style={{ color: "var(--chart-muted)" }}>
-                      {cell.combinedCapacityKwh} kWh combined
+                      + EV = {cell.combinedCapacityKwh} kWh
                     </div>
                   )}
                 </th>

@@ -551,10 +551,21 @@ export function runFullSimulation(
  * is just the stationary capacity plus that fixed EV capacity, shown for
  * context on the table's column headers.
  *
+ * Every cell computes BOTH a "with EV, exactly as configured" and a "no EV at
+ * all" payback (paybackYearsCombined / paybackYearsStationaryOnly) — same
+ * "combined vs. stationary-only" split as the outage numbers below, but for
+ * payback this genuinely means running the day's dispatch twice, once with the
+ * EV opted out, since (unlike energy pools during an outage) a day's cost isn't
+ * cleanly separable into "the battery's share" vs. "the EV's share" after the
+ * fact. If the household doesn't own an EV, both numbers come out identical —
+ * the "no EV" run and the "as configured" run are then simulating the exact
+ * same thing.
+ *
  * Performance note: with the default 9×7 = 63 cells, this re-runs the full
- * simulation 63 times, but each run is only simple arithmetic over 24 numbers —
- * fast enough (well under a video frame) to recompute live on every slider
- * change with no loading indicator needed.
+ * simulation roughly 2x per cell (~126 dispatch runs total for the payback
+ * split, plus 2 outage runs each), but every run is only simple arithmetic over
+ * 24 numbers — still fast enough (well under a video frame) to recompute live
+ * on every slider change with no loading indicator needed.
  */
 export function runSensitivityMatrix(
   inputs: SimulationInputs,
@@ -580,8 +591,23 @@ export function runSensitivityMatrix(
 
       const scaled = scaleReferenceData(cellInputs, refSolar, refLoad);
       const configured = runHourlyDispatch(cellInputs, scaled, tariff);
+      // The "no equipment at all" baseline never actually depends on ev.ownsEv —
+      // computeBaselineScenario() forces departureHour === arrivalHour, so the EV
+      // never plugs in and never touches cost either way — safe to compute once
+      // and reuse for both payback variants below.
       const baseline = computeBaselineScenario(cellInputs, tariff, refSolar, refLoad);
-      const financials = computeFinancials(cellInputs, configured, baseline);
+      const financialsCombined = computeFinancials(cellInputs, configured, baseline);
+
+      // A genuine "no EV at all" counterfactual for THIS SAME battery cell — not
+      // a cheap re-interpretation of financialsCombined, because a day's cost
+      // isn't separable into "the battery's share" vs. "the EV's share" after
+      // the fact (they compete for the same solar surplus and unmet demand all
+      // day). Re-runs the full dispatch with the EV opted out, so it also
+      // correctly drops the V2G charger's fixed cost from totalCapex. `scaled`
+      // is reusable as-is — the EV never affects scaleReferenceData()'s output.
+      const noEvInputs: SimulationInputs = { ...cellInputs, ev: { ...cellInputs.ev, ownsEv: false } };
+      const configuredNoEv = runHourlyDispatch(noEvInputs, scaled, tariff);
+      const financialsStationaryOnly = computeFinancials(noEvInputs, configuredNoEv, baseline);
 
       const blackoutHourState = configured.hourlyStates[cellInputs.blackoutStartHour];
       const combinedOutage = runOutageSimulation(
@@ -613,7 +639,8 @@ export function runSensitivityMatrix(
         stationaryCapacityKwh,
         combinedCapacityKwh:
           stationaryCapacityKwh + getEffectiveEVConfig(cellInputs.ev).capacityKwh,
-        paybackYears: financials.paybackYears,
+        paybackYearsCombined: financialsCombined.paybackYears,
+        paybackYearsStationaryOnly: financialsStationaryOnly.paybackYears,
         survivalHoursCombined: combinedOutage.survivalHours,
         survivalHoursCombinedExhausted: combinedOutage.exhausted,
         survivalHoursStationaryOnly: stationaryOnlyOutage.survivalHours,

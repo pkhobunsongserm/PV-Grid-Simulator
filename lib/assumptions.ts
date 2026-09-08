@@ -66,7 +66,7 @@ export const ASSUMPTIONS: Assumption[] = [
     id: "matrix",
     title: "The sensitivity matrix only sweeps the stationary battery",
     detail:
-      "Reserve SoC% and Stationary Capacity are what actually vary across the grid; EV capacity stays fixed at whatever you've configured elsewhere, since it's treated as a car already owned, not a sizing decision. Use the \"Battery Only\" / \"+ EV\" toggle above the table — with an EV in the household, the \"+ EV\" view can look flat across a whole row simply because the EV's fixed capacity dwarfs the stationary battery's own effect.",
+      "Reserve SoC% and Stationary Capacity are what actually vary across the grid; EV capacity stays fixed at whatever you've configured elsewhere, since it's treated as a car already owned, not a sizing decision. Use the \"Battery Only\" / \"+ EV\" toggle above the table — for Survival Hours, with an EV in the household, the \"+ EV\" view can look flat across a whole row simply because the EV's fixed capacity dwarfs the stationary battery's own effect. For Payback Years, \"Battery Only\" and \"+ EV\" are two genuinely different simulated days (the EV's charger cost and its own charging/V2G behavior are only counted in \"+ EV\"), not just two ways of reading the same number.",
   },
   {
     id: "financials",
