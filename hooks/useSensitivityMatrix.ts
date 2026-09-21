@@ -11,16 +11,17 @@
 import { useMemo } from "react";
 import { useSimulationStore } from "@/store/useSimulationStore";
 import { runSensitivityMatrix } from "@/lib/v2g-simulation";
-import { tariffSchedule, referenceSolarProfile, referenceHouseholdLoad } from "@/lib/reference-data";
+import { referenceSolarProfile, referenceHouseholdLoad } from "@/lib/reference-data";
 import type { SensitivityMatrixCell } from "@/lib/types";
 
 /** Returns the current Reserve SoC × Stationary Capacity grid of payback/
  * survival outcomes, recalculated whenever the sliders change. */
 export function useSensitivityMatrix(): SensitivityMatrixCell[][] {
   const inputs = useSimulationStore((state) => state.inputs);
+  const tariff = useSimulationStore((state) => state.tariff);
 
   return useMemo(
-    () => runSensitivityMatrix(inputs, tariffSchedule, referenceSolarProfile, referenceHouseholdLoad),
-    [inputs]
+    () => runSensitivityMatrix(inputs, tariff, referenceSolarProfile, referenceHouseholdLoad),
+    [inputs, tariff]
   );
 }

@@ -70,7 +70,7 @@ This project is also built incrementally as a hands-on learning and exploration 
 
 ## How It Works
 
-There is no backend, database, or API — this is a static, fully client-side app. "Storage" is three reference JSON files bundled with the build; everything else is computed on demand.
+There is no backend or database — this is a static, fully client-side app. "Storage" is three reference JSON files bundled with the build; everything else is computed on demand. The one network call is optional: choosing a real electricity plan fetches it, directly from the browser, from the AER's public plan data (`lib/tariff-api/`). If that fails, the built-in tariff keeps working.
 
 ```
 data/*.json  →  lib/reference-data.ts  →  scaling (lib/v2g-simulation.ts)  →  24h dispatch engine  →  Zustand store (raw inputs) → hooks (memoized recompute) → components (charts/cards/table)
@@ -140,7 +140,7 @@ Runs the Vitest suite against `lib/` — the engine and the display-formatting h
 - Solar surplus charges the stationary battery with zero grid import at midday.
 - The stationary battery never discharges below its reserve floor during normal (non-outage) operation.
 - The EV contributes zero resilience when away at the moment a blackout starts.
-- V2G discharge never fires outside Evening Peak hours.
+- V2G discharge never fires outside peak hours (the tariff's `isPeak` hours — Evening Peak on the built-in tariff).
 - Commute energy is deducted exactly once, at departure, clamped at zero.
 - A sensitivity matrix cell's result matches calling the engine directly with the same inputs.
 - Reserve SoC has zero effect on outage survival hours — a real, initially counterintuitive finding from manual testing, locked in as a permanent regression check.

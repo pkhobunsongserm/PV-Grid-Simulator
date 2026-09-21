@@ -244,6 +244,44 @@ describe("v2g-simulation engine", () => {
   });
 
   // ---------------------------------------------------------------------------
+  // Test 5d: "peak" is decided by each tariff hour's `isPeak` flag, NOT by its
+  // period name — that's what lets a real retail plan (whose periods are called
+  // "Peak", "Shoulder", "Flat rate"...) work with the same engine. Builds a
+  // tariff where the peak has moved to late evening (21:00-23:59, with the
+  // period names left untouched) and checks V2G discharge follows the FLAG:
+  // it happens in the newly flagged hours and stops in the old "Evening Peak" hours.
+  // ---------------------------------------------------------------------------
+  test("V2G discharge and grid-charge avoidance follow isPeak, not the period name", () => {
+    const movedPeak = {
+      ...tariff,
+      hourly_schedule: tariff.hourly_schedule.map((entry) => ({
+        ...entry,
+        isPeak: entry.hour >= 21,
+      })),
+    };
+    const inputs: SimulationInputs = {
+      ...DEFAULT_SIMULATION_INPUTS,
+      battery: { capacityKwh: 0, reserveSocPct: 0, startingSocPct: 0 },
+    };
+    const scaled = scaleReferenceData(inputs, refSolar, refLoad);
+    const states = runHourlyDispatch(inputs, scaled, movedPeak).hourlyStates;
+
+    // Premise: the default EV is home from 18:00 and demand is unmet at night,
+    // so with the flag at 21+ there really is discharge to observe.
+    expect(states.filter((s) => s.hour >= 21).some((s) => s.evDischargeKw > 0)).toBe(true);
+    // The old "Evening Peak" hours are no longer flagged, so no V2G there...
+    for (const state of states.filter((s) => s.period === "Evening Peak")) {
+      expect(state.evDischargeKw).toBeCloseTo(0, 6);
+    }
+    // ...and the EV is free to grid-charge on arrival (18:00) instead of waiting.
+    expect(states[18].evGridChargeKw).toBeGreaterThan(0);
+    // While inside the newly flagged hours it defers grid charging.
+    for (const state of states.filter((s) => s.hour >= 21)) {
+      expect(state.evGridChargeKw).toBeCloseTo(0, 6);
+    }
+  });
+
+  // ---------------------------------------------------------------------------
   // Test 6: the daily commute energy deduction happens exactly once (at the
   // moment the EV departs), not repeatedly, and never pushes the EV's charge
   // below zero. See README.md "Locked decisions" #5.

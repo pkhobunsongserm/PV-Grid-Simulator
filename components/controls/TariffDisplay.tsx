@@ -1,46 +1,58 @@
 // -----------------------------------------------------------------------------
 // components/controls/TariffDisplay.tsx
 //
-// A READ-ONLY table of the 24-hour tariff schedule from data/tou_tariff.json.
-// There's no slider here on purpose — README.md "Locked decisions" #1 explains
-// why tariff editing is out of scope for this version: the JSON schedule is
-// the single source of truth for pricing, and letting the UI silently diverge
-// from it would undermine that. Collapsed by default (defaultOpen={false})
-// since most users will only want to glance at it occasionally, not have it
-// taking up space every time they open the sidebar.
+// A READ-ONLY table of the 24-hour tariff currently in use — either the built-in
+// schedule from data/tou_tariff.json or the plan picked in PlanSelector.tsx.
+// There are no sliders here on purpose: hand-editing rates would let the UI
+// drift from real published prices (see README.md "Locked decisions" #1) —
+// change the tariff by picking a plan instead. Collapsed by default
+// (defaultOpen={false}) since most users will only want to glance at it
+// occasionally, not have it taking up space every time they open the sidebar.
 // -----------------------------------------------------------------------------
 "use client";
 
 import { Receipt } from "lucide-react";
 import { ControlSection } from "@/components/layout/ControlSection";
 import { InfoLink } from "@/components/common/InfoLink";
-import { tariffSchedule } from "@/lib/reference-data";
+import { useSimulationStore } from "@/store/useSimulationStore";
 import { formatAud, formatHour } from "@/lib/format";
 import type { TariffHourEntry } from "@/lib/types";
 
-// A small color per tariff period, so the cheap "Solar Sponge" window and the
-// expensive "Evening Peak" window are visually obvious at a glance, not just
-// readable as text.
-const PERIOD_STYLES: Record<TariffHourEntry["period"], string> = {
-  "Off-Peak": "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
-  "Solar Sponge": "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  "Evening Peak": "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
-};
+const PEAK_STYLE = "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300";
+const OFF_PEAK_STYLE = "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300";
+
+// A small color per tariff period, so the expensive peak window (and, for the
+// built-in tariff, the cheap midday "Solar Sponge") are visually obvious at a
+// glance, not just readable as text. Colored by `isPeak` rather than by name,
+// since a real plan's periods can be called anything ("Shoulder", "Flat rate"...).
+function periodStyle(entry: TariffHourEntry): string {
+  if (entry.isPeak) return PEAK_STYLE;
+  if (entry.period === "Solar Sponge") {
+    return "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300";
+  }
+  return OFF_PEAK_STYLE;
+}
 
 export function TariffDisplay() {
+  const tariff = useSimulationStore((state) => state.tariff);
+  const isPlan = useSimulationStore((state) => state.planSelection !== null);
+
   return (
     <ControlSection
-      title="Time-of-Use Tariff"
+      title="Hourly Tariff"
       icon={Receipt}
       description={
         <>
-          One real Melbourne tariff schedule, not editable in this version. <InfoLink id="tariff" />
+          {isPlan
+            ? "The hourly prices derived from your selected plan (weekday rates)."
+            : "The built-in Melbourne tariff. Pick a plan above to use a real one instead."}{" "}
+          <InfoLink id="tariff" />
         </>
       }
       defaultOpen={false}
     >
       <p className="mb-2 text-xs text-slate-400">
-        Daily supply charge: {formatAud(tariffSchedule.tariff_info.daily_supply_charge)},
+        Daily supply charge: {formatAud(tariff.tariff_info.daily_supply_charge)},
         charged regardless of usage.
       </p>
       <div className="max-h-64 overflow-y-auto rounded-md border border-slate-200 dark:border-slate-700">
@@ -54,11 +66,11 @@ export function TariffDisplay() {
             </tr>
           </thead>
           <tbody>
-            {tariffSchedule.hourly_schedule.map((entry) => (
+            {tariff.hourly_schedule.map((entry) => (
               <tr key={entry.hour} className="border-t border-slate-100 dark:border-slate-800">
                 <td className="px-2 py-1 tabular-nums">{formatHour(entry.hour)}</td>
                 <td className="px-2 py-1">
-                  <span className={`rounded px-1.5 py-0.5 ${PERIOD_STYLES[entry.period]}`}>
+                  <span className={`rounded px-1.5 py-0.5 ${periodStyle(entry)}`}>
                     {entry.period}
                   </span>
                 </td>

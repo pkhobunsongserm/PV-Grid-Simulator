@@ -25,6 +25,7 @@
 import { create } from "zustand";
 import { DEFAULT_SIMULATION_INPUTS } from "@/lib/constants";
 import { PRESETS, buildPresetInputs } from "@/lib/presets";
+import { tariffSchedule as defaultTariff } from "@/lib/reference-data";
 import type {
   SimulationInputs,
   BatteryConfig,
@@ -33,7 +34,16 @@ import type {
   LoadConfig,
   CapexConfig,
   PresetConfig,
+  TariffSchedule,
 } from "@/lib/types";
+
+/** Which real plan (from the AER data) the current tariff came from, so the plan
+ * picker can show what's selected. null while the bundled default is in use. */
+export interface PlanSelection {
+  brandId: string;
+  planId: string;
+  postcode: string;
+}
 
 /** Every value + action this store exposes. `inputs` is the actual data;
  * everything else is a function that changes some part of it. */
@@ -47,6 +57,14 @@ interface SimulationStore {
   // leaving a preset looking selected when it no longer matches.
   activePresetId: PresetConfig["id"] | "custom";
 
+  // The electricity plan the simulation prices everything against. Deliberately
+  // NOT part of `inputs`: it's not a slider, presets don't define one, and
+  // picking a plan shouldn't flip the active preset to "Custom". Starts as the
+  // bundled Melbourne tariff; replaced when the user picks a plan from the AER
+  // data (see components/controls/PlanSelector.tsx).
+  tariff: TariffSchedule;
+  planSelection: PlanSelection | null;
+
   // One setter per section of SimulationInputs. Each takes a "patch" — just the
   // fields you want to change — and merges it into that section, leaving
   // everything else untouched. E.g. setBattery({ capacityKwh: 15 }) only
@@ -57,6 +75,10 @@ interface SimulationStore {
   setLoad: (patch: Partial<LoadConfig>) => void;
   setCapex: (patch: Partial<CapexConfig>) => void;
   setBlackoutStartHour: (hour: number) => void;
+
+  /** Switches to a plan mapped from the AER data, or (with no arguments) back to
+   * the bundled default tariff. */
+  setTariff: (tariff?: TariffSchedule, selection?: PlanSelection) => void;
 
   /** Replaces the entire set of inputs with one of the three named presets from
    * lib/presets.ts (e.g. "Off-Grid Heavy"). */
@@ -69,6 +91,8 @@ interface SimulationStore {
 export const useSimulationStore = create<SimulationStore>((set) => ({
   inputs: DEFAULT_SIMULATION_INPUTS,
   activePresetId: "commuter-ev",
+  tariff: defaultTariff,
+  planSelection: null,
 
   // Each setter below follows the same pattern: read the current state,
   // build a brand-new `inputs` object (spreading `...state.inputs` to copy
@@ -114,11 +138,20 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
       activePresetId: "custom",
     })),
 
+  setTariff: (tariff, selection) =>
+    set({ tariff: tariff ?? defaultTariff, planSelection: tariff ? (selection ?? null) : null }),
+
   applyPreset: (presetId) => {
     const preset = PRESETS.find((p) => p.id === presetId);
     if (!preset) return; // unknown id — do nothing rather than crash
     set({ inputs: buildPresetInputs(preset), activePresetId: presetId });
   },
 
-  resetToDefaults: () => set({ inputs: DEFAULT_SIMULATION_INPUTS, activePresetId: "commuter-ev" }),
+  resetToDefaults: () =>
+    set({
+      inputs: DEFAULT_SIMULATION_INPUTS,
+      activePresetId: "commuter-ev",
+      tariff: defaultTariff,
+      planSelection: null,
+    }),
 }));

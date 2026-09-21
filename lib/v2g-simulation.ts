@@ -168,7 +168,7 @@ export function getEffectiveEVConfig(ev: EVConfig): EVConfig {
  *   4. Remaining solar surplus → sell to the grid ("export").
  *   5. Unmet demand → discharge the stationary battery (any time of day, as
  *      long as it's above its Reserve floor).
- *   6. Remaining unmet demand, ONLY during Evening Peak hours → discharge the
+ *   6. Remaining unmet demand, ONLY during peak hours (isPeak) → discharge the
  *      EV into the house ("V2G", if it's home and above its floor) — AND only
  *      if the household's charger is bidirectional (ev.v2gEnabled). A
  *      unidirectional ("normal") charger skips this step entirely, every
@@ -242,10 +242,10 @@ export function runHourlyDispatch(
     // charges from the grid" (the stationary battery, step 2 above, still
     // only ever charges from solar).
     //
-    // Whether it also waits out Evening Peak specifically (the tariff's most
-    // expensive period) before drawing from the grid is the EV's own
+    // Whether it also waits out peak hours (the tariff's most expensive hours,
+    // flagged isPeak) before drawing from the grid is the EV's own
     // avoidPeakGridCharging setting — "immediate" still means immediate
-    // during every other period, this only defers the grid top-up (never the
+    // outside peak hours, this only defers the grid top-up (never the
     // free solar-sourced charging above) through the priciest few hours.
     let evChargeKw = 0; // solar-sourced portion
     let evGridChargeKw = 0; // grid-sourced portion
@@ -260,7 +260,7 @@ export function runHourlyDispatch(
       evChargeKw = Math.min(remainingSolarKw, evChargeRoomKw);
       const roomAfterSolarKw = evChargeRoomKw - evChargeKw;
       const gridChargingAllowedThisHour =
-        !ev.avoidPeakGridCharging || tariffEntry.period !== "Evening Peak";
+        !ev.avoidPeakGridCharging || !tariffEntry.isPeak;
       evGridChargeKw = gridChargingAllowedThisHour ? roomAfterSolarKw : 0;
       evSocKwh += (evChargeKw + evGridChargeKw) * HOURS_PER_STEP;
       remainingSolarKw -= evChargeKw;
@@ -279,14 +279,14 @@ export function runHourlyDispatch(
     stationarySocKwh -= stationaryDischargeKw * HOURS_PER_STEP;
     unmetDemandKw -= stationaryDischargeKw;
 
-    // --- Step 6: EV V2G covers remaining unmet demand, Evening Peak only —
+    // --- Step 6: EV V2G covers remaining unmet demand, peak hours only —
     // and only if this EV's charger is bidirectional at all. A unidirectional
     // ("normal") charger has no hardware to push power backward under any
     // circumstance, so v2gEnabled: false gates this exactly like
     // pluggedIn/period do — this is the ONLY place normal-day V2G discharge
     // happens (see runOutageSimulation for the separate blackout-time gate).
     let evDischargeKw = 0;
-    if (ev.v2gEnabled && pluggedIn && tariffEntry.period === "Evening Peak") {
+    if (ev.v2gEnabled && pluggedIn && tariffEntry.isPeak) {
       const evDischargeRoomKw = Math.max(0, evSocKwh - evFloorKwh);
       evDischargeKw = Math.min(unmetDemandKw, ev.chargerPowerKw, evDischargeRoomKw);
       evSocKwh -= evDischargeKw * HOURS_PER_STEP;

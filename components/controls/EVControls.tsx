@@ -99,9 +99,9 @@ export function EVControls() {
             helpText={
               <>
                 On (default): the EV still charges from the grid the moment solar can&apos;t keep
-                up, but waits out Evening Peak (the day&apos;s most expensive rate) first, resuming
-                the instant Off-Peak or Solar Sponge starts. Off: charges immediately regardless
-                of price, even at Evening Peak rates. <InfoLink id="no-grid-charging" />
+                up, but waits out peak hours (the day&apos;s most expensive rates) first, resuming
+                the instant they end. Off: charges immediately regardless of price, even at
+                peak rates. <InfoLink id="no-grid-charging" />
               </>
             }
           />

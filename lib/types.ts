@@ -24,21 +24,33 @@
 /** One hour's entry in the tariff schedule (there are 24 of these, hour 0-23). */
 export interface TariffHourEntry {
   hour: number;
-  // The three named pricing periods used by this tariff. "Solar Sponge" is the
-  // cheap midday window meant to encourage charging batteries from the grid (we
-  // don't do that in this MVP — see README "Locked decisions" #3 — but the period
-  // name is still used to identify midday hours).
-  period: "Off-Peak" | "Solar Sponge" | "Evening Peak";
+  // A human-readable label for this hour's pricing period. The bundled Melbourne
+  // tariff uses "Off-Peak", "Solar Sponge" and "Evening Peak"; a plan fetched
+  // from the AER uses whatever the retailer calls its periods (e.g. "Peak",
+  // "Shoulder", "Off-peak", "Flat"). Display only — the simulation engine keys
+  // off `isPeak` below, never off this text.
+  period: string;
+  // True for this tariff's most expensive hours. This is what the engine uses
+  // for "V2G discharges only at peak" and "EV waits out peak before grid
+  // charging" — so those rules work for any plan, not just the bundled one.
+  isPeak: boolean;
   import_rate_per_kwh: number; // price in AUD to BUY 1kWh from the grid this hour
   export_rate_per_kwh: number; // price in AUD received for SELLING 1kWh to the grid
 }
 
-/** The full contents of data/tou_tariff.json. */
+/** The full contents of data/tou_tariff.json (or a plan mapped from the AER API). */
 export interface TariffSchedule {
   tariff_info: {
     currency: "AUD";
     daily_supply_charge: number; // flat daily fee, charged regardless of usage
     time_zone: string;
+    // Only set for plans chosen from the AER data (the bundled tariff omits them).
+    name?: string; // plan display name
+    retailer?: string; // retailer brand name
+    // Things about the real plan this hourly model can't represent (demand
+    // charges, controlled load, weekend rates...) — shown to the user so they
+    // know how approximate the numbers are.
+    notes?: string[];
   };
   hourly_schedule: TariffHourEntry[]; // always length 24, index = hour of day
 }
@@ -135,10 +147,10 @@ export interface EVConfig {
   // NOT retroactively pull the EV down if it's already above the cap (e.g. from a
   // high Starting Charge value); see getEffectiveEVConfig()'s doc comment.
   avoidPeakGridCharging: boolean; // true (default) = the EV still charges from
-  // the grid the moment solar can't keep up, but WAITS out Evening Peak
+  // the grid the moment solar can't keep up, but WAITS out peak-price hours
   // specifically rather than importing at the day's most expensive rate —
-  // resuming the instant Off-Peak or Solar Sponge starts. false = charge
-  // immediately regardless of price, even during Evening Peak. Solar-sourced
+  // resuming the instant the peak ends. false = charge immediately regardless
+  // of price, even during peak. Solar-sourced
   // charging is never affected either way — this only gates the grid top-up.
 }
 

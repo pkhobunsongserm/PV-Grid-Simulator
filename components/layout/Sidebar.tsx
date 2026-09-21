@@ -17,6 +17,7 @@ import { ReserveSocSlider } from "@/components/controls/ReserveSocSlider";
 import { EVControls } from "@/components/controls/EVControls";
 import { LoadControls } from "@/components/controls/LoadControls";
 import { BlackoutStartControl } from "@/components/controls/BlackoutStartControl";
+import { PlanSelector } from "@/components/controls/PlanSelector";
 import { TariffDisplay } from "@/components/controls/TariffDisplay";
 import { CapexControls } from "@/components/controls/CapexControls";
 
@@ -30,6 +31,7 @@ export function Sidebar() {
       <EVControls />
       <LoadControls />
       <BlackoutStartControl />
+      <PlanSelector />
       <TariffDisplay />
       <CapexControls />
     </aside>

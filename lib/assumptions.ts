@@ -28,9 +28,9 @@ export interface Assumption {
 export const ASSUMPTIONS: Assumption[] = [
   {
     id: "tariff",
-    title: "The tariff is fixed, not your own plan",
+    title: "Tariffs are simplified, and may not match your bill",
     detail:
-      "Import/export rates and when Off-Peak, Solar Sponge, and Evening Peak apply all come from one real Melbourne time-of-use schedule, and can't be edited here. If your actual plan's rates or period boundaries differ, treat every dollar figure as directional, not an exact quote.",
+      "By default, import/export rates all come from one real Melbourne time-of-use schedule. Or pick a real plan under Electricity Plan: its prices are read live from the AER's public plan data and turned into 24 hourly rates using the WEEKDAY schedule (a time window that starts mid-hour is averaged across that hour). Usage and supply prices have 10% GST added, since the AER publishes them without it; feed-in tariffs are used as published. \"Peak\" means the plan's most expensive hours — that's when V2G discharges and (by default) the EV waits before charging from the grid. Stepped rates use the highest step, seasonal plans use today's season, and demand charges, controlled-load circuits and weekend-only differences are NOT modelled (the plan card lists what applies to your pick). Treat every dollar figure as directional, not an exact quote.",
   },
   {
     id: "scaling",
@@ -42,7 +42,7 @@ export const ASSUMPTIONS: Assumption[] = [
     id: "no-grid-charging",
     title: "The two batteries charge from the grid very differently",
     detail:
-      "The stationary battery only ever charges from solar surplus — never the grid, at any tariff period, so its cost model is always \"free to fill.\" The EV is the opposite: like a real EV charger, it starts drawing power the moment it's plugged in, using solar first and topping up the rest from the grid. By default it waits out Evening Peak (the day's most expensive rate) before doing that grid top-up, resuming the moment Off-Peak or Solar Sponge starts — turn off \"Avoid peak-price grid charging\" to see it import at Evening Peak rates instead, which can meaningfully hurt Payback Years if the EV arrives home needing a real top-up during that window.",
+      "The stationary battery only ever charges from solar surplus — never the grid, at any tariff period, so its cost model is always \"free to fill.\" The EV is the opposite: like a real EV charger, it starts drawing power the moment it's plugged in, using solar first and topping up the rest from the grid. By default it waits out peak hours (the day's most expensive rates — \"Evening Peak\" on the built-in tariff) before doing that grid top-up, resuming the moment the peak ends — turn off \"Avoid peak-price grid charging\" to see it import at peak rates instead, which can meaningfully hurt Payback Years if the EV arrives home needing a real top-up during that window.",
   },
   {
     id: "reserve-floor",
@@ -90,6 +90,6 @@ export const ASSUMPTIONS: Assumption[] = [
     id: "ev-v2g-toggle",
     title: "V2G is a toggle, not the only way to model an EV",
     detail:
-      "By default, the EV's charger is bidirectional (\"V2G\") — it can discharge back into the house during Evening Peak, and help out during a simulated blackout. Turn off \"Enable V2G\" to model a standard, cheaper one-way charger instead: the EV still charges exactly the same way (solar first, then the grid, same Max Charge Cap), but it never discharges, under any circumstance — including a blackout, since a real unidirectional charger has no hardware to push power backward. Turning V2G off also swaps which flat charger cost counts toward payback, from V2G Charger Cost to the cheaper Normal Charger Cost.",
+      "By default, the EV's charger is bidirectional (\"V2G\") — it can discharge back into the house during peak-price hours, and help out during a simulated blackout. Turn off \"Enable V2G\" to model a standard, cheaper one-way charger instead: the EV still charges exactly the same way (solar first, then the grid, same Max Charge Cap), but it never discharges, under any circumstance — including a blackout, since a real unidirectional charger has no hardware to push power backward. Turning V2G off also swaps which flat charger cost counts toward payback, from V2G Charger Cost to the cheaper Normal Charger Cost.",
   },
 ];

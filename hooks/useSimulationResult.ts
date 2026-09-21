@@ -13,15 +13,15 @@
 import { useMemo } from "react";
 import { useSimulationStore } from "@/store/useSimulationStore";
 import { runFullSimulation, type FullSimulationOutput } from "@/lib/v2g-simulation";
-import { tariffSchedule, referenceSolarProfile, referenceHouseholdLoad } from "@/lib/reference-data";
+import { referenceSolarProfile, referenceHouseholdLoad } from "@/lib/reference-data";
 
 /**
  * Returns the full simulation result (24-hour dispatch, baseline comparison,
  * financials, and both outage-survival numbers) for whatever the sliders are
- * CURRENTLY set to.
+ * CURRENTLY set to, priced against the currently selected electricity plan.
  *
  * `useMemo` here means "only actually re-run the simulation if `inputs`
- * changed since last time — otherwise just hand back the same result object
+ * or `tariff` changed since last time — otherwise just hand back the same result object
  * from before." Without it, every component that calls this hook would
  * silently re-run the entire 24-hour simulation on every single render (which
  * can happen for reasons unrelated to the sliders, like a parent component
@@ -29,9 +29,10 @@ import { tariffSchedule, referenceSolarProfile, referenceHouseholdLoad } from "@
  */
 export function useSimulationResult(): FullSimulationOutput {
   const inputs = useSimulationStore((state) => state.inputs);
+  const tariff = useSimulationStore((state) => state.tariff);
 
   return useMemo(
-    () => runFullSimulation(inputs, tariffSchedule, referenceSolarProfile, referenceHouseholdLoad),
-    [inputs]
+    () => runFullSimulation(inputs, tariff, referenceSolarProfile, referenceHouseholdLoad),
+    [inputs, tariff]
   );
 }

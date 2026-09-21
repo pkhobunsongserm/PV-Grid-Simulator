@@ -76,9 +76,12 @@ fresh calculation off the current slider values.
 
 ### 1. Tariff data source
 The tariff schedule in `data/tou_tariff.json` (24 hourly entries, 4 named periods —
-Off-Peak, Solar Sponge, Evening Peak) is the canonical source of tariff rates. It is
-**not user-editable** in this version — no UI exists to change rates or period
-boundaries. An earlier draft of the feature list described a simpler 3-tier tariff with
+Off-Peak, Solar Sponge, Evening Peak) is the default source of tariff rates, and rates are
+**not hand-editable** — no UI exists to type in rates or period boundaries.
+(Update: users can now instead pick a real retail plan, fetched live from the AER's
+Consumer Data Right plan data and mapped to 24 hourly weekday rates by
+`lib/tariff-api/to-schedule.ts`; the engine reads "peak" from each hour's `isPeak`
+flag rather than from the period name, so it works with either.) An earlier draft of the feature list described a simpler 3-tier tariff with
 different numbers; that draft was superseded by this file.
 
 ### 2. Scaling the reference solar/demand curves
